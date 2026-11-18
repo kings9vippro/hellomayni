@@ -4,6 +4,7 @@ import MetalKit
 import QuartzCore
 
 @main struct TouchOptimizerApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     var body: some Scene { WindowGroup { MainView().preferredColorScheme(.dark) } }
 }
 
@@ -31,6 +32,32 @@ final class Lab: ObservableObject {
     @Published var thermal = "—"
     @Published var power = false
     @Published var gpuOK = true
+    @Published var measuring = false
+    @Published var lastFPS: Double = 0
+    @Published var fpsTime = Date.distantPast
+    @Published var targetFPS = 60
+    @Published var resolution = 100
+    @Published var skippedFrames = 0
+    @Published var adaptive = true
+    @Published var economy = true
+    @Published var keepAwake = false
+    @Published var readyForGame = false
+    @Published var hudEnabled = true
+    @Published var releaseToken = UUID()
+    func prepareForGame() {
+        readyForGame = true
+        releaseToken = UUID()
+        keepAwake = false
+        deviceInfo()
+    }
+    func resumeMeasurement() {
+        readyForGame = false
+    }
+    func rememberFPS(_ fps:Double) {
+        guard fps > 0 else { return }
+        lastFPS = fps
+        fpsTime = Date()
+    }
     init() {
         if let data = UserDefaults.standard.data(forKey:"history.v2"), let a = try? JSONDecoder().decode([Result].self,from:data) { history = a }
     }
@@ -55,13 +82,33 @@ final class Lab: ObservableObject {
 
 struct MainView: View {
     @StateObject private var lab = Lab()
+    @StateObject private var background = BackgroundSettings()
+    @Environment(\.scenePhase) private var phase
+    @State private var selection = 0
     var body: some View {
-        TabView {
-            NavigationStack { Meter(lab:lab) }.tabItem { Label("Cảm ứng",systemImage:"hand.draw") }
-            NavigationStack { Trainer() }.tabItem { Label("Luyện tâm",systemImage:"scope") }
-            NavigationStack { History(lab:lab) }.tabItem { Label("So sánh",systemImage:"chart.bar") }
-            NavigationStack { Guide() }.tabItem { Label("Tối ưu",systemImage:"slider.horizontal.3") }
+        TabView(selection:$selection) {
+            NavigationStack { Meter(lab:lab) }.tabItem { Label("Cảm ứng",systemImage:"hand.draw") }.tag(0)
+            NavigationStack { Trainer() }.tabItem { Label("Luyện tâm",systemImage:"scope") }.tag(1)
+            NavigationStack { History(lab:lab) }.tabItem { Label("So sánh",systemImage:"chart.bar") }.tag(2)
+            NavigationStack { PerformanceView(lab:lab,background:background) }.tabItem { Label("Tối ưu",systemImage:"slider.horizontal.3") }.tag(3)
         }.tint(.mint)
+        .safeAreaInset(edge:.top,spacing:0) {
+            if lab.hudEnabled { FPSStrip(lab:lab,active:phase == .active && selection == 0) }
+        }
+        .onChange(of:phase) { _, value in
+            UIApplication.shared.isIdleTimerDisabled = value == .active && lab.keepAwake
+            if value == .background {
+                lab.releaseToken = UUID()
+                background.scheduleIfEnabled()
+            } else if value == .active {
+                background.reload()
+                lab.deviceInfo()
+            }
+        }
+        .onChange(of:lab.keepAwake) { _, value in
+            UIApplication.shared.isIdleTimerDisabled = value && phase == .active
+        }
+        .onAppear { background.reload(); lab.deviceInfo() }
     }
 }
 struct Tile: View {
@@ -82,12 +129,17 @@ struct Meter: View {
     var body:some View {
         ScrollView {
             VStack(alignment:.leading,spacing:14) {
-                Text("TOUCH LAB / PRO 2.0").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
+                Text("TOUCH LAB / PRO 3.0").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
                 Text("Đo cảm ứng thật").font(.largeTitle.bold())
                 Text("Vuốt thẳng, chạm nhiều ngón hoặc kéo nhanh. Số liệu từ UIKit và Metal.").font(.subheadline).foregroundStyle(.secondary)
-                ZStack(alignment:.topTrailing) {
-                    Surface(lab:lab,running:shown && phase == .active).frame(height:220).clipShape(RoundedRectangle(cornerRadius:20))
-                    Text(lab.fps>0 ? String(format:"%.0f FPS",lab.fps) : "— FPS").font(.system(.caption,design:.monospaced).bold()).padding(8).background(.black.opacity(0.75),in:Capsule()).foregroundStyle(.mint).padding(9).allowsHitTesting(false)
+                if lab.readyForGame {
+                    VStack(spacing:12) {
+                        Text("Đã dừng phép đo và yêu cầu giải phóng bộ nhớ của app.").foregroundStyle(.secondary)
+                        Button("Khởi động lại bộ đo") { lab.resumeMeasurement() }.buttonStyle(.borderedProminent)
+                    }.frame(maxWidth:.infinity).padding()
+                } else {
+                    Surface(lab:lab,running:shown && phase == .active).frame(height:280).clipShape(RoundedRectangle(cornerRadius:20))
+                        .accessibilityHint("Vuốt trên bề mặt; kéo ngoài vùng để cuộn trang.")
                 }
                 if !lab.gpuOK { Text("Không khởi tạo được Metal. Không có số liệu FPS.").foregroundStyle(.orange) }
                 Toggle("Hiển thị dự đoán điểm chạm",isOn:$lab.prediction).font(.subheadline)
@@ -102,6 +154,9 @@ struct Meter: View {
                     Tile(label:"Nhiệt hệ thống",value:lab.thermal)
                     Tile(label:"Cử chỉ bị hủy",value:String(lab.stats.cancelled))
                     Tile(label:"Nguồn điện thấp",value:lab.power ? "Bật" : "Tắt")
+                    Tile(label:"Mục tiêu render",value:"\(lab.targetFPS) FPS")
+                    Tile(label:"Độ phân giải render",value:"\(lab.resolution)%")
+                    Tile(label:"Bỏ gửi GPU bận",value:"\(lab.skippedFrames)")
                 }
                 TextField("Tên cấu hình",text:$lab.name).textFieldStyle(.roundedBorder)
                 HStack {
@@ -122,12 +177,13 @@ struct Surface: UIViewRepresentable {
     var running:Bool
     func makeUIView(context:Context)->TouchMetal {
         let v=TouchMetal(frame:.zero,device:MTLCreateSystemDefaultDevice())
-        v.lab=lab; v.token=lab.reset; v.isPaused = !running
+        v.lab=lab; v.token=lab.reset; v.releaseToken=lab.releaseToken; v.setRunning(running)
         return v
     }
     func updateUIView(_ v:TouchMetal,context:Context) {
         v.lab=lab
         if v.token != lab.reset { v.token=lab.reset; v.clearSession() }
+        if v.releaseToken != lab.releaseToken { v.releaseToken=lab.releaseToken; v.releaseTransient() }
         v.setRunning(running)
     }
     static func dismantleUIView(_ v:TouchMetal,coordinator:()) { v.setRunning(false);v.delegate=nil }
@@ -139,6 +195,14 @@ struct Vertex {
 final class TouchMetal: MTKView, MTKViewDelegate {
     weak var lab:Lab?
     var token=UUID()
+    var releaseToken=UUID()
+    private let inFlight=DispatchSemaphore(value:2)
+    private var gridVertices:[Vertex]=[]
+    private var gridSize:CGSize = .zero
+    private var skipped=0
+    private var appliedScale:CGFloat=1
+    private var currentTarget=60
+    private var lastPolicy:Double=0
     private let engine=tc_create()
     private var ids:[ObjectIdentifier:Int64]=[:]
     private var lastTime:[Int64:Double]=[:]
@@ -157,6 +221,8 @@ final class TouchMetal: MTKView, MTKViewDelegate {
     override init(frame:CGRect,device:MTLDevice?) {
         super.init(frame:frame,device:device)
         isMultipleTouchEnabled=true
+        framebufferOnly=true
+        autoResizeDrawable=false
         isOpaque=true
         colorPixelFormat = .bgra8Unorm
         clearColor=MTLClearColorMake(0.025,0.07,0.09,1)
@@ -193,16 +259,53 @@ final class TouchMetal: MTKView, MTKViewDelegate {
         wanted=value;epoch &+= 1;presentation.removeAll();lastPublish=0
         isPaused = !value
         if !value {
+            releaseTransient()
             for id in ids.values { tc_end(engine,id,1) }
             ids.removeAll();lastTime.removeAll();future.removeAll();dirty=true
         }
         DispatchQueue.main.async { [weak self] in
             guard let self=self else{return}
             self.lab?.fps=0;self.lab?.frameP95=0;self.lab?.gpuOK=self.pipeline != nil
+            self.lab?.measuring=self.wanted
         }
     }
-    func clearSession() { tc_reset(engine);ids.removeAll();lastTime.removeAll();paths.removeAll();future.removeAll();serial=0;dirty=true }
+    func clearSession() { skipped=0;tc_reset(engine);ids.removeAll();lastTime.removeAll();paths.removeAll();future.removeAll();serial=0;dirty=true }
+    func releaseTransient() {
+        for id in ids.values { tc_end(engine,id,1) }
+        ids.removeAll(keepingCapacity:false);lastTime.removeAll(keepingCapacity:false)
+        paths.removeAll(keepingCapacity:false);future.removeAll(keepingCapacity:false)
+        gridVertices.removeAll(keepingCapacity:false);gridSize = .zero
+        presentation.removeAll(keepingCapacity:false)
+        releaseDrawables()
+        dirty=true
+    }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        resizeDrawable()
+    }
+    private func resizeDrawable() {
+        let scale=(window?.screen.scale ?? traitCollection.displayScale)*appliedScale
+        guard bounds.width>0,bounds.height>0 else{return}
+        let size=CGSize(width:max(1,(bounds.width*scale).rounded()),height:max(1,(bounds.height*scale).rounded()))
+        if drawableSize != size {drawableSize=size}
+    }
     func mtkView(_ view:MTKView,drawableSizeWillChange size:CGSize) {}
+    private func applyPolicy(_ now:Double) {
+        guard now-lastPolicy>=1 else{return}
+        lastPolicy=now
+        let thermal=ProcessInfo.processInfo.thermalState
+        let adaptive=lab?.adaptive ?? true
+        let maxFPS=min(60,window?.screen.maximumFramesPerSecond ?? 60)
+        var target=maxFPS
+        var scale:CGFloat=1
+        if adaptive {
+            if thermal == .serious {scale=0.85}
+            if thermal == .critical {scale=0.75;target=min(30,maxFPS)}
+        }
+        if target != currentTarget {currentTarget=target;preferredFramesPerSecond=target;presentation.removeAll()}
+        if scale != appliedScale {appliedScale=scale;resizeDrawable()}
+        lab?.targetFPS=target;lab?.resolution=Int(scale*100)
+    }
     private func ingest(_ t:UITouch,_ e:UIEvent?) {
         guard let id=ids[ObjectIdentifier(t)] else {return}
         let now=ProcessInfo.processInfo.systemUptime
@@ -214,7 +317,7 @@ final class TouchMetal: MTKView, MTKViewDelegate {
             paths[id,default:[]].append(p)
         }
         if let n=paths[id]?.count,n>500 {paths[id]?.removeFirst(n-500)}
-        future[id]=(e?.predictedTouches(for:t) ?? []).map{$0.preciseLocation(in:self)}
+        if lab?.prediction == true {future[id]=(e?.predictedTouches(for:t) ?? []).map{$0.preciseLocation(in:self)}} else {future.removeValue(forKey:id)}
         dirty=true
     }
     override func touchesBegan(_ touches:Set<UITouch>,with event:UIEvent?) {
@@ -233,21 +336,42 @@ final class TouchMetal: MTKView, MTKViewDelegate {
     }
     private func render(_ vertices:[Vertex],_ encoder:MTLRenderCommandEncoder,_ primitive:MTLPrimitiveType = .lineStrip) {
         guard vertices.count>=2,let device=device else{return}
+        _=device
         vertices.withUnsafeBufferPointer { ptr in
             guard let base=ptr.baseAddress else{return}
-            let n=ptr.count*MemoryLayout<Vertex>.stride
-            if n<=4096 {encoder.setVertexBytes(base,length:n,index:0)}
-            else {guard let b=device.makeBuffer(bytes:base,length:n,options:.storageModeShared) else{return};encoder.setVertexBuffer(b,offset:0,index:0)}
-            encoder.drawPrimitives(type:primitive,vertexStart:0,vertexCount:ptr.count)
+            let stride=MemoryLayout<Vertex>.stride
+            let cap=(4096/stride/2)*2
+            var i=0
+            while i<ptr.count-1 {
+                let count=min(cap,ptr.count-i)
+                encoder.setVertexBytes(base.advanced(by:i),length:count*stride,index:0)
+                encoder.drawPrimitives(type:primitive,vertexStart:0,vertexCount:count)
+                if count==ptr.count-i {break}
+                i += primitive == .lineStrip ? count-1 : count
+            }
         }
     }
     func draw(in view:MTKView) {
-        guard wanted,let q=queue,let p=pipeline,let desc=currentRenderPassDescriptor,let drawable=currentDrawable,let cmd=q.makeCommandBuffer(),let enc=cmd.makeRenderCommandEncoder(descriptor:desc) else{return}
+        guard wanted else{return}
+        let clock=CACurrentMediaTime()
+        applyPolicy(clock)
+        let interval:Double = lab?.economy == true ? 0.65 : 0.30
+        if clock-lastPublish >= interval {
+            publish(clock)
+        }
+        guard inFlight.wait(timeout:.now()) == .success else {skipped += 1;return}
+        guard let q=queue,let p=pipeline,let desc=currentRenderPassDescriptor,let drawable=currentDrawable,let cmd=q.makeCommandBuffer(),let enc=cmd.makeRenderCommandEncoder(descriptor:desc) else{inFlight.signal();return}
+        let semaphore=inFlight
+        cmd.addCompletedHandler { _ in semaphore.signal() }
         enc.setRenderPipelineState(p)
-        let grid=SIMD4<Float>(0.09,0.17,0.19,1)
-        var lines:[Vertex]=[];for x in stride(from:CGFloat(20),to:bounds.width,by:20) {lines += [vertex(CGPoint(x:x,y:0),grid),vertex(CGPoint(x:x,y:bounds.height),grid)]}
-        for y in stride(from:CGFloat(20),to:bounds.height,by:20) {lines += [vertex(CGPoint(x:0,y:y),grid),vertex(CGPoint(x:bounds.width,y:y),grid)]}
-        render(lines,enc,.line)
+        if gridSize != bounds.size {
+            gridSize=bounds.size
+            let grid=SIMD4<Float>(0.09,0.17,0.19,1)
+            gridVertices.removeAll(keepingCapacity:true)
+            for x in stride(from:CGFloat(20),to:bounds.width,by:20) {gridVertices += [vertex(CGPoint(x:x,y:0),grid),vertex(CGPoint(x:x,y:bounds.height),grid)]}
+            for y in stride(from:CGFloat(20),to:bounds.height,by:20) {gridVertices += [vertex(CGPoint(x:0,y:y),grid),vertex(CGPoint(x:bounds.width,y:y),grid)]}
+        }
+        render(gridVertices,enc,.line)
         for (id,ps) in paths {
             let c=palette[Int(id % Int64(palette.count))]
             render(ps.map{vertex($0,c)},enc)
@@ -264,18 +388,19 @@ final class TouchMetal: MTKView, MTKViewDelegate {
             DispatchQueue.main.async { [weak self] in self?.presented(t,generation) }
         }
         cmd.present(drawable);cmd.commit()
-        let now=CACurrentMediaTime()
-        if now-lastPublish >= 0.4 {
+    }
+    private func publish(_ now:Double) {
             lastPublish=now
+            lab?.skippedFrames=skipped
             if dirty {lab?.stats=tc_stats(engine);dirty=false}
             if now-lastDevice>=2 {lastDevice=now;lab?.deviceInfo()}
             let a=presentation.sorted()
             if a.count>=2, let f=a.first,let l=a.last,l>f,now-l<0.75 {
-                lab?.fps=Double(a.count-1)/(l-f)
+                let fps=Double(a.count-1)/(l-f)
+                lab?.fps=fps;lab?.rememberFPS(fps)
                 let gaps=zip(a.dropFirst(),a).map{($0.0-$0.1)*1000}.sorted()
                 lab?.frameP95=gaps[min(gaps.count-1,Int(ceil(Double(gaps.count)*0.95))-1)]
             } else {lab?.fps=0;lab?.frameP95=0}
-        }
     }
     private func presented(_ t:Double,_ generation:UInt64) {
         guard wanted,generation==epoch else{return}
