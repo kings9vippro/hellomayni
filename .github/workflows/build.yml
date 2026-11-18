@@ -1,0 +1,50 @@
+name: Build Touch Lab Pro IPA
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'App/**'
+      - 'Core/**'
+      - 'Tests/**'
+      - 'project.yml'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: C++ verification
+        run: clang++ -std=c++17 -O2 -Wall -Wextra -I Core Core/TouchCore.cpp Tests/test.cpp -o /tmp/touch-test && /tmp/touch-test
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild -version
+      - name: Build arm64
+        run: |
+          set -o pipefail
+          xcodebuild -project TouchOptimizerPro.xcodeproj -scheme TouchOptimizerPro -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$RUNNER_TEMP/derived" ARCHS=arm64 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build | tee "$RUNNER_TEMP/build.log"
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p dist Payload
+          cp -R "$RUNNER_TEMP/derived/Build/Products/Release-iphoneos/TouchOptimizerPro.app" Payload/
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' Payload/TouchOptimizerPro.app/Info.plist
+          file Payload/TouchOptimizerPro.app/TouchOptimizerPro
+          zip -qry dist/TouchOptimizerPro-unsigned.ipa Payload
+          unzip -t dist/TouchOptimizerPro-unsigned.ipa
+          shasum -a 256 dist/TouchOptimizerPro-unsigned.ipa > dist/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TouchOptimizerPro-unsigned
+          path: dist/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcode-build-log
+          path: ${{ runner.temp }}/build.log
+          if-no-files-found: ignore
