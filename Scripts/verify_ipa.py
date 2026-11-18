@@ -10,10 +10,11 @@ with zipfile.ZipFile(ipa) as z:
         assert info.get(k) and "$(" not in str(info[k]), (k,info.get(k))
     assert info["CFBundleIdentifier"]==expected
     assert info["CFBundlePackageType"]=="APPL"
-    assert info["CFBundleShortVersionString"]=="5.0.0"
+    assert info["CFBundleShortVersionString"]=="5.0.1"
     assert tuple(map(int,info["MinimumOSVersion"].split("."))) <= (18,7,2)
     assert 1 in info.get("UIDeviceFamily",[]), info.get("UIDeviceFamily")
     assert info.get("CFBundleSupportedPlatforms")==["iPhoneOS"]
+    assert z.getinfo(root+"default.metallib").file_size > 0, "Missing compiled Metal shaders"
     binary=z.read(root+info["CFBundleExecutable"])
     magic,cpu,subtype,ftype=struct.unpack_from("<IIII",binary)
     assert magic==0xfeedfacf and cpu==0x0100000c and ftype==2,(hex(magic),hex(cpu),ftype)

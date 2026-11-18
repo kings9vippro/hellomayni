@@ -41,7 +41,7 @@ struct Dashboard:View {
                     VStack(alignment:.leading,spacing:5) {
                         Text("TOUCH LAB").font(.system(size:12,weight:.heavy,design:.monospaced)).tracking(4).foregroundStyle(.teal)
                         Text("Performance").font(.system(size:32,weight:.bold,design:.rounded))
-                        Text("Chẩn đoán trên thiết bị  /  5.0").font(.caption).foregroundStyle(.secondary)
+                        Text("Chẩn đoán trên thiết bị  /  5.0.1").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button {appearance.toggle()} label:{Image(systemName:appearance ? "sun.max":"moon.stars").font(.title3).frame(width:44,height:44).background(.thinMaterial,in:Circle())}.buttonStyle(.plain).accessibilityLabel("Đổi giao diện")

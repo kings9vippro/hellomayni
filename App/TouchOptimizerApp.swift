@@ -165,7 +165,7 @@ struct Meter: View {
     var body:some View {
         ScrollView {
             VStack(alignment:.leading,spacing:14) {
-                Text("TOUCH LAB / PRO 5.0").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
+                Text("TOUCH LAB / 5.0.1").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
                 Text("Đo cảm ứng thật").font(.largeTitle.bold())
                 Text("Vuốt thẳng, chạm nhiều ngón hoặc kéo nhanh. Số liệu từ UIKit và Metal.").font(.subheadline).foregroundStyle(.secondary)
                 Toggle("Chỉ hiện vùng đo FPS",isOn:$lab.compactMeter).font(.subheadline)
@@ -247,10 +247,9 @@ final class TouchMetal: MTKView, MTKViewDelegate {
     private var appliedScale:CGFloat=1
     private var currentTarget=60
     private var lastPolicy:Double=0
-    private var lastDowngrade:Double=0
     private var pendingGPU:Double?
     private var pressureLevel=0
-    private var lastPressureChange:Double=0
+    private var coolerSince:Double?
     private let engine=tc_create()
     private var ids:[ObjectIdentifier:Int64]=[:]
     private var lastTime:[Int64:Double]=[:]
@@ -280,17 +279,7 @@ final class TouchMetal: MTKView, MTKViewDelegate {
         accessibilityLabel="Vùng kiểm tra nhiều điểm chạm"
         if let device=device {
             queue=device.makeCommandQueue()
-            let src="""
-            #include <metal_stdlib>
-            using namespace metal;
-            struct V { float2 p; float4 c; };
-            struct Out { float4 position [[position]]; float4 color; };
-            vertex Out touch_vertex(const device V* v [[buffer(0)]],uint i [[vertex_id]]) {
-              Out o; o.position=float4(v[i].p,0,1);o.color=v[i].c;return o;
-            }
-            fragment float4 touch_fragment(Out in [[stage_in]]) { return in.color; }
-            """
-            if let lib=try? device.makeLibrary(source:src,options:nil) {
+            if let lib=device.makeDefaultLibrary() {
                 let d=MTLRenderPipelineDescriptor()
                 d.vertexFunction=lib.makeFunction(name:"touch_vertex")
                 d.fragmentFunction=lib.makeFunction(name:"touch_fragment")
@@ -308,6 +297,8 @@ final class TouchMetal: MTKView, MTKViewDelegate {
     deinit { NotificationCenter.default.removeObserver(self);tc_destroy(engine) }
     func setRunning(_ value:Bool) {
         guard value != wanted else { return }
+        coolerSince=nil
+        lastPolicy=0
         wanted=value;epoch &+= 1;presentation.removeAll();lastPublish=0
         isPaused = !value
         if !value {
@@ -355,15 +346,22 @@ final class TouchMetal: MTKView, MTKViewDelegate {
         var scale:CGFloat=1
         if adaptive {
             let requested=thermal == .critical ? 3 : (thermal == .serious ? 2 : (thermal == .fair ? 1 : 0))
-            // Immediate reduction; only restore after sustained cooler readings.
-            if requested>pressureLevel || (requested<pressureLevel && now-lastPressureChange>=12) {
-                pressureLevel=requested;lastPressureChange=now
+            if requested < pressureLevel {
+                let since = coolerSince ?? now
+                coolerSince = since
+                if now - since >= 12 {
+                    pressureLevel = requested
+                    coolerSince = nil
+                }
+            } else {
+                pressureLevel = requested
+                coolerSince = nil
             }
             // Keep 60 FPS where possible; sacrifice resolution before cadence.
             if pressureLevel==1 {scale=0.95}
             if pressureLevel==2 {scale=0.80}
             if pressureLevel>=3 {scale=0.70;target=min(30,maxFPS)}
-        } else {pressureLevel=0;lastPressureChange=now}
+        } else {pressureLevel=0;coolerSince=nil}
         if target != currentTarget {currentTarget=target;preferredFramesPerSecond=target;presentation.removeAll();epoch &+= 1;pendingGPU=nil}
         if scale != appliedScale {appliedScale=scale;resizeDrawable()}
         if lab?.targetFPS != target {lab?.targetFPS=target}
@@ -407,8 +405,7 @@ final class TouchMetal: MTKView, MTKViewDelegate {
         Vertex(p:SIMD2(Float(p.x/max(1,bounds.width)*2-1),Float(1-p.y/max(1,bounds.height)*2)),c:color)
     }
     private func render(_ vertices:[Vertex],_ encoder:MTLRenderCommandEncoder,_ primitive:MTLPrimitiveType = .lineStrip) {
-        guard vertices.count>=2,let device=device else{return}
-        _=device
+        guard vertices.count>=2 else{return}
         vertices.withUnsafeBufferPointer { ptr in
             guard let base=ptr.baseAddress else{return}
             let stride=MemoryLayout<Vertex>.stride
