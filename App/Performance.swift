@@ -4,7 +4,9 @@ import BackgroundTasks
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey:Any]? = nil) -> Bool {
+        #if !TOUCHLAB_LITE
         BackgroundSettings.register()
+        #endif
         return true
     }
 }
@@ -20,6 +22,13 @@ struct BackgroundSample: Codable {
 
 final class BackgroundSettings: ObservableObject {
     static let taskID="com.touchlab.optimizer.refresh"
+    static var supportsRefresh:Bool {
+        #if TOUCHLAB_LITE
+        return false
+        #else
+        return true
+        #endif
+    }
     static let enabledKey="background.health.enabled"
     static let sampleKey="background.health.sample"
     @Published var enabled=false
@@ -27,6 +36,7 @@ final class BackgroundSettings: ObservableObject {
     @Published var latest:BackgroundSample?
     init(){reload()}
     func reload() {
+        guard Self.supportsRefresh else {enabled=false;status="Bản Lite không đăng ký tác vụ nền";return}
         enabled=UserDefaults.standard.bool(forKey:Self.enabledKey)
         if let bytes=UserDefaults.standard.data(forKey:Self.sampleKey) {latest=try? JSONDecoder().decode(BackgroundSample.self,from:bytes)}
         if !enabled {status="Đang tắt"}
@@ -34,13 +44,14 @@ final class BackgroundSettings: ObservableObject {
         else {status="Bật; chờ lịch do iOS quyết định"}
     }
     func setEnabled(_ value:Bool) {
+        guard Self.supportsRefresh else{return}
         UserDefaults.standard.set(value,forKey:Self.enabledKey)
         reload()
         if value {scheduleIfEnabled()}
         else {BGTaskScheduler.shared.cancel(taskRequestWithIdentifier:Self.taskID)}
     }
     func scheduleIfEnabled() {
-        guard enabled else{return}
+        guard Self.supportsRefresh,enabled else{return}
         guard UIApplication.shared.backgroundRefreshStatus == .available else {status="iOS đang hạn chế làm mới nền";return}
         do {try Self.submit();status="Đã gửi yêu cầu đến iOS"}
         catch {status="Không đăng ký được: "+error.localizedDescription}
@@ -104,6 +115,7 @@ struct PerformanceView:View {
             Section {
                 Button {
                     lab.prepareForGame()
+                    if background.enabled {background.setEnabled(false)}
                 } label:{
                     Label(lab.readyForGame ? "Đã yêu cầu dừng bộ đo":"Chuẩn bị vào Free Fire",systemImage:"bolt.circle.fill").font(.headline)
                 }
@@ -115,7 +127,7 @@ struct PerformanceView:View {
                 Text("Bật Game Mode từ Trung tâm điều khiển lúc đang chơi game (nếu được hỗ trợ). App này không có quyền ép xung, chỉnh digitizer hoặc dọn RAM của app khác.").font(.caption).foregroundStyle(.secondary)
             } header:{Text("Trước khi chơi")}
             Section {
-                Toggle("Kiểm tra trạng thái khi chạy nền",isOn:Binding(get:{background.enabled},set:{background.setEnabled($0)}))
+                Toggle("Kiểm tra trạng thái khi chạy nền",isOn:Binding(get:{background.enabled},set:{background.setEnabled($0)})).disabled(!BackgroundSettings.supportsRefresh)
                 Text(background.status).font(.caption).foregroundStyle(.secondary)
                 if let last=background.latest {
                     Text("Lần kiểm tra nền: "+last.date.formatted(date:.abbreviated,time:.shortened))

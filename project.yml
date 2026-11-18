@@ -18,11 +18,13 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.touchlab.optimizer
         PRODUCT_NAME: TouchOptimizerPro
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        SUPPORTS_MACCATALYST: NO
         INFOPLIST_FILE: Config/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: Touch Lab Pro
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        MARKETING_VERSION: '3.0.0'
-        CURRENT_PROJECT_VERSION: '3'
+        MARKETING_VERSION: '4.0.0'
+        CURRENT_PROJECT_VERSION: '4'
         TARGETED_DEVICE_FAMILY: '1'
         SWIFT_OBJC_BRIDGING_HEADER: App/Bridge.h
         HEADER_SEARCH_PATHS: '$(SRCROOT)/Core'
