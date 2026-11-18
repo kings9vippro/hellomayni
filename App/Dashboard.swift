@@ -41,7 +41,7 @@ struct Dashboard:View {
                     VStack(alignment:.leading,spacing:5) {
                         Text("TOUCH LAB").font(.system(size:12,weight:.heavy,design:.monospaced)).tracking(4).foregroundStyle(.teal)
                         Text("Performance").font(.system(size:32,weight:.bold,design:.rounded))
-                        Text("Chẩn đoán trên thiết bị  /  4.0").font(.caption).foregroundStyle(.secondary)
+                        Text("Chẩn đoán trên thiết bị  /  5.0").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button {appearance.toggle()} label:{Image(systemName:appearance ? "sun.max":"moon.stars").font(.title3).frame(width:44,height:44).background(.thinMaterial,in:Circle())}.buttonStyle(.plain).accessibilityLabel("Đổi giao diện")
@@ -85,7 +85,8 @@ struct Dashboard:View {
                     Text("Tối ưu thông minh").font(.headline)
                     Toggle("Tự giảm tải khi nóng",isOn:$lab.adaptive).padding(.top,4)
                     Toggle("Tiết kiệm tải thống kê",isOn:$lab.economy)
-                    Toggle("Khung FPS trong app",isOn:$lab.hudEnabled)
+                    Toggle("Khung FPS kéo thả",isOn:$lab.hudEnabled)
+                    Button("Mở bộ đo FPS nhỏ") {lab.resumeMeasurement();lab.compactMeter=true;selection=0}.buttonStyle(.bordered)
                     Text("Các chế độ tác động trực tiếp đến bộ đo của Touch Lab, không ép xung hay chỉnh cảm ứng Free Fire.").font(.caption).foregroundStyle(.secondary)
                 }
                 GlassPanel {

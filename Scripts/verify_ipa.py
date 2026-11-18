@@ -10,7 +10,7 @@ with zipfile.ZipFile(ipa) as z:
         assert info.get(k) and "$(" not in str(info[k]), (k,info.get(k))
     assert info["CFBundleIdentifier"]==expected
     assert info["CFBundlePackageType"]=="APPL"
-    assert info["CFBundleShortVersionString"]=="4.0.0"
+    assert info["CFBundleShortVersionString"]=="5.0.0"
     assert tuple(map(int,info["MinimumOSVersion"].split("."))) <= (18,7,2)
     assert 1 in info.get("UIDeviceFamily",[]), info.get("UIDeviceFamily")
     assert info.get("CFBundleSupportedPlatforms")==["iPhoneOS"]

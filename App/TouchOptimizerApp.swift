@@ -47,6 +47,11 @@ final class Lab: ObservableObject {
     @Published var preparationDate: Date?
     @Published var lastSnapshot = ""
     @Published var economy = true
+    @Published var compactMeter = false
+    @Published var battery: Int? = nil
+    @Published var storageGB: Double? = nil
+    @Published var gpuMS: Double? = nil
+    @Published var renderMode = "Thích ứng"
     func prepareForGame() {
         readyForGame = true
         preparationDate = Date()
@@ -70,19 +75,34 @@ final class Lab: ObservableObject {
     func save() {
         guard stats.intervals > 0 else { return }
         history.insert(Result(name:name,hz:stats.median_hz,gap:stats.p95_gap_ms,delay:stats.mean_delivery_ms,fps:fps,fingers:Int(stats.peak_fingers),samples:Int(stats.samples),rms:stats.straight_rms_pt),at:0)
+        if history.count>100 {history.removeLast(history.count-100)}
         persist()
     }
     func persist() { if let d = try? JSONEncoder().encode(history) { UserDefaults.standard.set(d,forKey:"history.v2") } }
     func clear() { stats = TCStats(); reset = UUID() }
     func deviceInfo() {
+        let t:String
         switch ProcessInfo.processInfo.thermalState {
-        case .nominal: thermal = "Bình thường"
-        case .fair: thermal = "Ấm"
-        case .serious: thermal = "Nóng"
-        case .critical: thermal = "Rất nóng"
-        @unknown default: thermal = "Không rõ"
+        case .nominal: t = "Bình thường"
+        case .fair: t = "Ấm"
+        case .serious: t = "Nóng"
+        case .critical: t = "Rất nóng"
+        @unknown default: t = "Không rõ"
         }
-        power = ProcessInfo.processInfo.isLowPowerModeEnabled
+        if thermal != t {thermal=t}
+        let low=ProcessInfo.processInfo.isLowPowerModeEnabled
+        if power != low {power=low}
+        if UIDevice.current.isBatteryMonitoringEnabled {
+            let level=UIDevice.current.batteryLevel
+            let value:Int? = level>=0 ? Int((level*100).rounded()) : nil
+            if battery != value {battery=value}
+        }
+    }
+    func refreshStorage() {
+        let url=URL(fileURLWithPath:NSHomeDirectory())
+        if let r=try? url.resourceValues(forKeys:[.volumeAvailableCapacityForImportantUsageKey]),let n=r.volumeAvailableCapacityForImportantUsage {
+            storageGB=Double(n)/1_000_000_000
+        }
     }
 }
 
@@ -101,23 +121,30 @@ struct MainView: View {
             NavigationStack { PerformanceView(lab:lab,background:background) }.tabItem { Label("Tối ưu",systemImage:"slider.horizontal.3") }.tag(3)
         }.tint(.mint)
         .environment(\.colorScheme,appearance ? .dark : .light)
-        .safeAreaInset(edge:.top,spacing:0) {
-            if lab.hudEnabled { FPSStrip(lab:lab,active:phase == .active && selection == 0) }
+        .overlay {
+            if lab.hudEnabled && phase == .active {
+                FloatingFPS(lab:lab,active:selection == 0 && !lab.readyForGame)
+            }
         }
         .onChange(of:phase) { _, value in
             UIApplication.shared.isIdleTimerDisabled = value == .active && lab.keepAwake
             if value == .background {
+                UIDevice.current.isBatteryMonitoringEnabled=false
                 lab.releaseToken = UUID()
                 if !lab.readyForGame {background.scheduleIfEnabled()}
             } else if value == .active {
+                UIDevice.current.isBatteryMonitoringEnabled=true
                 background.reload()
                 lab.deviceInfo()
+                lab.refreshStorage()
             }
         }
         .onChange(of:lab.keepAwake) { _, value in
             UIApplication.shared.isIdleTimerDisabled = value && phase == .active
         }
-        .onAppear { background.reload(); lab.deviceInfo() }
+        .onAppear { UIDevice.current.isBatteryMonitoringEnabled=true; background.reload(); lab.deviceInfo(); lab.refreshStorage() }
+        .onReceive(NotificationCenter.default.publisher(for:ProcessInfo.thermalStateDidChangeNotification)) {_ in lab.deviceInfo()}
+        .onReceive(NotificationCenter.default.publisher(for:Notification.Name.NSProcessInfoPowerStateDidChange)) {_ in lab.deviceInfo()}
     }
 }
 struct Tile: View {
@@ -138,19 +165,21 @@ struct Meter: View {
     var body:some View {
         ScrollView {
             VStack(alignment:.leading,spacing:14) {
-                Text("TOUCH LAB / PRO 4.0").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
+                Text("TOUCH LAB / PRO 5.0").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
                 Text("Đo cảm ứng thật").font(.largeTitle.bold())
                 Text("Vuốt thẳng, chạm nhiều ngón hoặc kéo nhanh. Số liệu từ UIKit và Metal.").font(.subheadline).foregroundStyle(.secondary)
+                Toggle("Chỉ hiện vùng đo FPS",isOn:$lab.compactMeter).font(.subheadline)
                 if lab.readyForGame {
                     VStack(spacing:12) {
                         Text("Đã dừng phép đo và yêu cầu giải phóng bộ nhớ của app.").foregroundStyle(.secondary)
                         Button("Khởi động lại bộ đo") { lab.resumeMeasurement() }.buttonStyle(.borderedProminent)
                     }.frame(maxWidth:.infinity).padding()
                 } else {
-                    Surface(lab:lab,running:shown && phase == .active).frame(height:280).clipShape(RoundedRectangle(cornerRadius:20))
+                    Surface(lab:lab,running:shown && phase == .active).frame(height:lab.compactMeter ? 420 : 280).clipShape(RoundedRectangle(cornerRadius:20))
                         .accessibilityHint("Vuốt trên bề mặt; kéo ngoài vùng để cuộn trang.")
                 }
                 if !lab.gpuOK { Text("Không khởi tạo được Metal. Không có số liệu FPS.").foregroundStyle(.orange) }
+                if !lab.compactMeter {
                 Toggle("Hiển thị dự đoán điểm chạm",isOn:$lab.prediction).font(.subheadline)
                 LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
                     Tile(label:"Tần suất mẫu nhận",value:fmt(lab.stats.median_hz,"Hz",lab.stats.intervals>0))
@@ -166,12 +195,14 @@ struct Meter: View {
                     Tile(label:"Mục tiêu render",value:"\(lab.targetFPS) FPS")
                     Tile(label:"Độ phân giải render",value:"\(lab.resolution)%")
                     Tile(label:"Bỏ gửi GPU bận",value:"\(lab.skippedFrames)")
+                    Tile(label:"GPU / khung gần nhất",value:lab.gpuMS.map{String(format:"%.2f ms",$0)} ?? "—")
                 }
                 TextField("Tên cấu hình",text:$lab.name).textFieldStyle(.roundedBorder)
                 HStack {
                     Button("Đo lại") { lab.clear() }.buttonStyle(.bordered)
                     Spacer()
                     Button("Lưu kết quả") { lab.save() }.buttonStyle(.borderedProminent).disabled(lab.stats.intervals==0)
+                }
                 }
                 Text("FPS là khung Metal được trình chiếu trong app này. Hz là mẫu UITouch nhận được, không phải Hz vật lý. Trễ callback không phải tổng độ trễ màn hình. Dự đoán chỉ để vẽ, không tính vào số mẫu.").font(.caption).foregroundStyle(.secondary)
             }.padding(16)
@@ -216,6 +247,10 @@ final class TouchMetal: MTKView, MTKViewDelegate {
     private var appliedScale:CGFloat=1
     private var currentTarget=60
     private var lastPolicy:Double=0
+    private var lastDowngrade:Double=0
+    private var pendingGPU:Double?
+    private var pressureLevel=0
+    private var lastPressureChange:Double=0
     private let engine=tc_create()
     private var ids:[ObjectIdentifier:Int64]=[:]
     private var lastTime:[Int64:Double]=[:]
@@ -264,22 +299,26 @@ final class TouchMetal: MTKView, MTKViewDelegate {
             }
         }
         delegate=self
+        NotificationCenter.default.addObserver(self,selector:#selector(deactivate),name:UIApplication.willResignActiveNotification,object:nil)
+        NotificationCenter.default.addObserver(self,selector:#selector(trimMemory),name:UIApplication.didReceiveMemoryWarningNotification,object:nil)
     }
     required init(coder:NSCoder) { fatalError("init(coder:) unsupported") }
-    deinit { tc_destroy(engine) }
+    @objc private func deactivate() {setRunning(false)}
+    @objc private func trimMemory() {releaseTransient()}
+    deinit { NotificationCenter.default.removeObserver(self);tc_destroy(engine) }
     func setRunning(_ value:Bool) {
         guard value != wanted else { return }
         wanted=value;epoch &+= 1;presentation.removeAll();lastPublish=0
         isPaused = !value
         if !value {
             releaseTransient()
-            for id in ids.values { tc_end(engine,id,1) }
-            ids.removeAll();lastTime.removeAll();future.removeAll();dirty=true
+            pendingGPU=nil
         }
         DispatchQueue.main.async { [weak self] in
             guard let self=self else{return}
             self.lab?.fps=0;self.lab?.frameP95=0;self.lab?.gpuOK=self.pipeline != nil
             self.lab?.measuring=self.wanted
+            if !self.wanted {self.lab?.gpuMS=nil}
         }
     }
     func clearSession() { skipped=0;tc_reset(engine);ids.removeAll();lastTime.removeAll();paths.removeAll();future.removeAll();pathOrder.removeAll();cachedPaths.removeAll();changedPaths.removeAll();serial=0;dirty=true }
@@ -290,6 +329,8 @@ final class TouchMetal: MTKView, MTKViewDelegate {
         pathOrder.removeAll(keepingCapacity:false);cachedPaths.removeAll(keepingCapacity:false);changedPaths.removeAll(keepingCapacity:false)
         gridVertices.removeAll(keepingCapacity:false);gridSize = .zero
         presentation.removeAll(keepingCapacity:false)
+        epoch &+= 1
+        pendingGPU=nil
         releaseDrawables()
         dirty=true
     }
@@ -313,10 +354,17 @@ final class TouchMetal: MTKView, MTKViewDelegate {
         var target=maxFPS
         var scale:CGFloat=1
         if adaptive {
-            if thermal == .serious {scale=0.85}
-            if thermal == .critical {scale=0.75;target=min(30,maxFPS)}
-        }
-        if target != currentTarget {currentTarget=target;preferredFramesPerSecond=target;presentation.removeAll()}
+            let requested=thermal == .critical ? 3 : (thermal == .serious ? 2 : (thermal == .fair ? 1 : 0))
+            // Immediate reduction; only restore after sustained cooler readings.
+            if requested>pressureLevel || (requested<pressureLevel && now-lastPressureChange>=12) {
+                pressureLevel=requested;lastPressureChange=now
+            }
+            // Keep 60 FPS where possible; sacrifice resolution before cadence.
+            if pressureLevel==1 {scale=0.95}
+            if pressureLevel==2 {scale=0.80}
+            if pressureLevel>=3 {scale=0.70;target=min(30,maxFPS)}
+        } else {pressureLevel=0;lastPressureChange=now}
+        if target != currentTarget {currentTarget=target;preferredFramesPerSecond=target;presentation.removeAll();epoch &+= 1;pendingGPU=nil}
         if scale != appliedScale {appliedScale=scale;resizeDrawable()}
         if lab?.targetFPS != target {lab?.targetFPS=target}
         if lab?.resolution != Int(scale*100) {lab?.resolution=Int(scale*100)}
@@ -386,7 +434,16 @@ final class TouchMetal: MTKView, MTKViewDelegate {
         guard inFlight.wait(timeout:.now()) == .success else {skipped += 1;return}
         guard let q=queue,let p=pipeline,let desc=currentRenderPassDescriptor,let drawable=currentDrawable,let cmd=q.makeCommandBuffer(),let enc=cmd.makeRenderCommandEncoder(descriptor:desc) else{inFlight.signal();return}
         let semaphore=inFlight
-        cmd.addCompletedHandler { _ in semaphore.signal() }
+        let generation=epoch
+        cmd.addCompletedHandler { [weak self] command in
+            semaphore.signal()
+            let ms=(command.gpuEndTime-command.gpuStartTime)*1000
+            guard command.status == .completed,ms.isFinite,ms>0 else{return}
+            DispatchQueue.main.async { [weak self] in
+                guard let self=self,self.wanted,self.epoch==generation else{return}
+                self.pendingGPU=ms
+            }
+        }
         enc.setRenderPipelineState(p)
         if gridSize != bounds.size {
             gridSize=bounds.size
@@ -410,7 +467,6 @@ final class TouchMetal: MTKView, MTKViewDelegate {
             }
         }
         enc.endEncoding()
-        let generation=epoch
         drawable.addPresentedHandler { [weak self] d in
             let t=d.presentedTime
             guard t>0 else{return}
@@ -421,9 +477,10 @@ final class TouchMetal: MTKView, MTKViewDelegate {
     private func publish(_ now:Double) {
             lastPublish=now
             if lab?.skippedFrames != skipped {lab?.skippedFrames=skipped}
+            if let ms=pendingGPU {lab?.gpuMS=ms;pendingGPU=nil}
             if dirty {lab?.stats=tc_stats(engine);dirty=false}
             if now-lastDevice>=2 {lastDevice=now;lab?.deviceInfo()}
-            let a=presentation.sorted()
+            let a=presentation
             if a.count>=2, let f=a.first,let l=a.last,l>f,now-l<0.75 {
                 let fps=Double(a.count-1)/(l-f)
                 lab?.fps=fps;lab?.rememberFPS(fps)
@@ -433,9 +490,11 @@ final class TouchMetal: MTKView, MTKViewDelegate {
     }
     private func presented(_ t:Double,_ generation:UInt64) {
         guard wanted,generation==epoch else{return}
-        if !presentation.contains(t) {presentation.append(t)}
-        let newest=presentation.max() ?? t
-        presentation.removeAll{$0<newest-1.5}
+        if let last=presentation.last,t<=last {
+            if !presentation.contains(t) {presentation.append(t);presentation.sort()}
+        } else {presentation.append(t)}
+        let newest=presentation.last ?? t
+        if let first=presentation.firstIndex(where:{$0>=newest-1.5}),first>0 {presentation.removeFirst(first)}
         if presentation.count>240 {presentation.removeFirst(presentation.count-240)}
     }
 }

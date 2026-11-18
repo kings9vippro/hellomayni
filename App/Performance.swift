@@ -102,15 +102,17 @@ struct PerformanceView:View {
             Section {
                 HStack {Text("Nhiệt hệ thống");Spacer();Text(lab.thermal).foregroundStyle(.mint)}
                 HStack {Text("Nguồn điện thấp");Spacer();Text(lab.power ? "Bật":"Tắt").foregroundStyle(.secondary)}
+                HStack {Text("Pin hiện tại");Spacer();Text(lab.battery.map{"\($0)%"} ?? "—")}
+                HStack {Text("Dung lượng khả dụng ước tính");Spacer();Text(lab.storageGB.map{String(format:"%.1f GB",$0)} ?? "—")}
                 HStack {Text("Làm mới nền");Spacer();Text(UIApplication.shared.backgroundRefreshStatus == .available ? "Khả dụng":"Bị hạn chế").foregroundStyle(.secondary)}
-                Button("Cập nhật trạng thái") {lab.deviceInfo();background.reload()}
+                Button("Cập nhật trạng thái") {lab.deviceInfo();lab.refreshStorage();background.reload()}
             } header:{Text("Trạng thái thiết bị")}
             Section {
                 Toggle("Tự giảm tải khi nóng",isOn:$lab.adaptive)
                 Toggle("Giảm tải phân tích giao diện",isOn:$lab.economy)
                 Toggle("Giữ màn hình sáng trong app",isOn:$lab.keepAwake)
                 Toggle("Khung FPS trên các tab",isOn:$lab.hudEnabled)
-                Text("Chế độ thích ứng giữ độ phân giải gốc khi máy mát; giảm render còn 85% khi nóng và 75% / tối đa 30 FPS khi rất nóng. Tùy chọn chỉ áp dụng cho bộ đo Touch Lab.").font(.caption).foregroundStyle(.secondary)
+                Text("Chế độ thích ứng giảm tải theo nhiệt độ, ưu tiên giữ nhịp khung hình và chỉ phục hồi độ phân giải sau khoảng ổn định. Chỉ áp dụng cho Touch Lab.").font(.caption).foregroundStyle(.secondary)
             } header:{Text("Tối ưu thực trong ứng dụng")}
             Section {
                 Button {
@@ -136,7 +138,9 @@ struct PerformanceView:View {
                 Text("iOS quyết định thời điểm thực thi; không chạy liên tục và không đo được FPS Free Fire. Khi chơi game nên tắt nếu muốn tránh tác vụ nền không cần thiết.").font(.caption).foregroundStyle(.secondary)
             } header:{Text("Chạy nền thật • có điều kiện")}
             Section {
-                Text("Khung FPS hiển thị khung Metal đã trình chiếu của bộ đo; khi rời bộ đo, chỉ hiển thị trạng thái dừng và mẫu cuối. iOS không cấp quyền vẽ HUD FPS trực tiếp trên Free Fire.")
+                Text("Kéo ô FPS nhỏ tới vị trí bạn muốn trong Touch Lab. Khi dừng bộ đo, ô hiện dấu gạch, không giả lập FPS. iOS không cho ứng dụng này phủ lên Free Fire.")
+                Text("Graphics HUD của Apple: Cài đặt → Nhà phát triển → Graphics HUD → Show Graphics HUD (nếu có). Tính năng này chỉ hiện ở ứng dụng phát triển tương thích; không đảm bảo hoạt động với Free Fire bản App Store.").font(.caption).foregroundStyle(.secondary)
+                Link("Hướng dẫn Metal HUD của Apple",destination:URL(string:"https://developer.apple.com/documentation/xcode/monitoring-your-metal-apps-graphics-performance")!)
                 Button("Mở cài đặt ứng dụng") {if let u=URL(string:UIApplication.openSettingsURLString){UIApplication.shared.open(u)}}
             } header:{Text("Giới hạn hệ thống")}
         }.navigationTitle("Tối ưu Pro")
