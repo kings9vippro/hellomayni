@@ -26,56 +26,12 @@ jobs:
       - name: Swift conditional directive syntax check
         run: |
           python3 - <<'PY'
-          import pathlib,re
+          import pathlib
           for root in ('App','HUDApp','HUDShared','HUDExtension'):
               for p in pathlib.Path(root).rglob('*.swift'):
                   for n,line in enumerate(p.read_text().splitlines(),1):
-                      if re.match(r'^\s*#(?:endif|else)\b\s*(?!//)\S',line) and not re.match(r'^\s*#(?:endif|else)\s*(?://.*)?
-        run: |
-          mkdir -p /tmp/rate-test
-          cp HUDShared/ScreenMetrics.swift /tmp/rate-test/
-          cat >/tmp/rate-test/main.swift <<'SWIFT'
-          import Foundation
-          var rate=CaptureRate()
-          for i in 0..<100 {rate.record(Double(i)/60)}
-          precondition(abs((rate.fps ?? 0)-60)<0.01)
-          rate.reset()
-          for i in 0..<60 {rate.record(Double(i)/30);rate.record(Double(i)/30)}
-          precondition(abs((rate.fps ?? 0)-30)<0.01)
-          rate.record(20)
-          precondition(rate.fps==nil)
-          print("Capture estimator tests passed")
-          SWIFT
-          swiftc /tmp/rate-test/ScreenMetrics.swift /tmp/rate-test/main.swift -o /tmp/rate-test/run && /tmp/rate-test/run
-      - name: Generate project
-        run: |
-          brew install xcodegen
-          xcodegen generate --spec project-hud.yml
-      - name: Build host and extension ARM64
-        run: |
-          set -o pipefail
-          xcodebuild -project TouchLabHUD.xcodeproj -scheme TouchLabHUD -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$RUNNER_TEMP/derived" ARCHS=arm64 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build | tee "$RUNNER_TEMP/hud-build.log"
-      - name: Package and verify
-        run: |
-          mkdir -p dist Payload
-          cp -R "$RUNNER_TEMP/derived/Build/Products/Release-iphoneos/TouchLabHUD.app" Payload/
-          zip -qry dist/TouchLab-HUD-7.0.0-unsigned.ipa Payload
-          python3 Scripts/verify_hud.py dist/TouchLab-HUD-7.0.0-unsigned.ipa
-          cp HUDConfig/Groups.entitlements Scripts/sign_hud.sh dist/
-          shasum -a 256 dist/*.ipa > dist/SHA256.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: TouchLab-HUD-7-unsigned
-          path: dist/
-          retention-days: 90
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: HUD-build-log
-          path: ${{ runner.temp }}/hud-build.log
-          if-no-files-found: ignore
-,line):
+                      code=line.split('//',1)[0].strip()
+                      if code.startswith(('#endif','#else')) and code not in ('#endif','#else') and not code.startswith('#elseif '):
                           raise SystemExit(f'{p}:{n}: trailing tokens on Swift compilation directive')
           PY
       - name: Capture rate tests
