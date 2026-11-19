@@ -45,3 +45,13 @@ phân phối. Với bản Ad Hoc, profile phải chứa UDID của iPhone nhận
 Nếu iPhone vẫn báo không thể cài, xem thông báo chi tiết trong Xcode khi chạy
 trên máy. Với IPA đã ký, đối chiếu Team, bundle ID, hạn profile, danh sách thiết
 bị được phép và phiên bản iOS tối thiểu của chính bản IPA đó.
+
+## 5.1.0
+
+- Nút **Đo FPS và hiện HUD** mở bộ đo Metal thu gọn. Có thể kéo HUD hình chữ
+  nhật hoặc ẩn/hiện ngay từ thanh công cụ. App lưu lựa chọn hiển thị.
+- Mục **Đo cảm ứng** có tùy chọn làm mượt nét vẽ, giữ nguyên mẫu UIKit gốc để
+  tính tần suất, độ trễ và khoảng cách thời gian giữa các mẫu. Mục luyện tâm
+  được gỡ khỏi ứng dụng.
+- Nút **Free Fire VN trên App Store** dừng bộ đo và mở trang game. Nếu đã cài,
+  nhấn **Mở** trên App Store. Mục **Tối ưu** có hướng dẫn chỉnh độ nhạy trong game.

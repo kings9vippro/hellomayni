@@ -41,7 +41,10 @@ final class Lab: ObservableObject {
     @Published var adaptive = true
     @Published var keepAwake = false
     @Published var readyForGame = false
-    @Published var hudEnabled = true
+    @Published var hudEnabled = UserDefaults.standard.object(forKey: "hud.enabled") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(hudEnabled, forKey: "hud.enabled") }
+    }
+    @Published var smoothTrail = false
     @Published var releaseToken = UUID()
     @Published var sessionStarted = Date()
     @Published var preparationDate: Date?
@@ -57,6 +60,7 @@ final class Lab: ObservableObject {
         preparationDate = Date()
         lastSnapshot = "Nhiệt: \(thermal) · Nguồn thấp: \(power ? "Bật" : "Tắt")"
         releaseToken = UUID()
+        UIApplication.shared.isIdleTimerDisabled = false
         keepAwake = false
         deviceInfo()
     }
@@ -116,7 +120,6 @@ struct MainView: View {
         TabView(selection:$selection) {
             NavigationStack { Dashboard(lab:lab,background:background,selection:$selection,appearance:$appearance) }.tabItem { Label("Tổng quan",systemImage:"square.grid.2x2") }.tag(4)
             NavigationStack { Meter(lab:lab) }.tabItem { Label("Cảm ứng",systemImage:"hand.draw") }.tag(0)
-            NavigationStack { Trainer() }.tabItem { Label("Luyện tâm",systemImage:"scope") }.tag(1)
             NavigationStack { History(lab:lab) }.tabItem { Label("So sánh",systemImage:"chart.bar") }.tag(2)
             NavigationStack { PerformanceView(lab:lab,background:background) }.tabItem { Label("Tối ưu",systemImage:"slider.horizontal.3") }.tag(3)
         }.tint(.mint)
@@ -138,6 +141,9 @@ struct MainView: View {
                 lab.deviceInfo()
                 lab.refreshStorage()
             }
+        }
+        .onChange(of: lab.readyForGame) { _, preparing in
+            if !preparing { background.resumeAfterGame() }
         }
         .onChange(of:lab.keepAwake) { _, value in
             UIApplication.shared.isIdleTimerDisabled = value && phase == .active
@@ -165,7 +171,7 @@ struct Meter: View {
     var body:some View {
         ScrollView {
             VStack(alignment:.leading,spacing:14) {
-                Text("TOUCH LAB / 5.0.1").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
+                Text("TOUCH LAB / 5.1.0").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
                 Text("Đo cảm ứng thật").font(.largeTitle.bold())
                 Text("Vuốt thẳng, chạm nhiều ngón hoặc kéo nhanh. Số liệu từ UIKit và Metal.").font(.subheadline).foregroundStyle(.secondary)
                 Toggle("Chỉ hiện vùng đo FPS",isOn:$lab.compactMeter).font(.subheadline)
@@ -181,6 +187,9 @@ struct Meter: View {
                 if !lab.gpuOK { Text("Không khởi tạo được Metal. Không có số liệu FPS.").foregroundStyle(.orange) }
                 if !lab.compactMeter {
                 Toggle("Hiển thị dự đoán điểm chạm",isOn:$lab.prediction).font(.subheadline)
+                Toggle("Làm mượt nét hiển thị", isOn: $lab.smoothTrail)
+                Text("Chỉ làm mượt đường vẽ. Phép đo vẫn dùng điểm UIKit gốc.")
+                    .font(.caption).foregroundStyle(.secondary)
                 LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
                     Tile(label:"Tần suất mẫu nhận",value:fmt(lab.stats.median_hz,"Hz",lab.stats.intervals>0))
                     Tile(label:"Khoảng mẫu P95",value:fmt(lab.stats.p95_gap_ms,"ms",lab.stats.intervals>0))
@@ -207,7 +216,13 @@ struct Meter: View {
                 Text("FPS là khung Metal được trình chiếu trong app này. Hz là mẫu UITouch nhận được, không phải Hz vật lý. Trễ callback không phải tổng độ trễ màn hình. Dự đoán chỉ để vẽ, không tính vào số mẫu.").font(.caption).foregroundStyle(.secondary)
             }.padding(16)
         }.background(LabBackdrop())
-        .navigationTitle("Touch Lab").navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("Đo cảm ứng").navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            Button(lab.hudEnabled ? "Ẩn HUD" : "Hiện HUD", systemImage: "speedometer") {
+                lab.hudEnabled.toggle()
+            }
+            .labelStyle(.titleOnly)
+        }
         .onAppear { shown=true; lab.deviceInfo() }.onDisappear { shown=false }
     }
 }
@@ -244,6 +259,7 @@ final class TouchMetal: MTKView, MTKViewDelegate {
     private var cachedPaths:[Int64:[Vertex]]=[:]
     private var cachedPathSize:CGSize = .zero
     private var changedPaths=Set<Int64>()
+    private var cachedSmoothing = false
     private var appliedScale:CGFloat=1
     private var currentTarget=60
     private var lastPolicy:Double=0
@@ -450,9 +466,26 @@ final class TouchMetal: MTKView, MTKViewDelegate {
             for y in stride(from:CGFloat(20),to:bounds.height,by:20) {gridVertices += [vertex(CGPoint(x:0,y:y),grid),vertex(CGPoint(x:bounds.width,y:y),grid)]}
         }
         render(gridVertices,enc,.line)
-        if cachedPathSize != bounds.size {cachedPathSize=bounds.size;changedPaths.formUnion(paths.keys)}
+        let smooth = lab?.smoothTrail == true
+        if cachedPathSize != bounds.size || cachedSmoothing != smooth {
+            cachedPathSize = bounds.size
+            cachedSmoothing = smooth
+            changedPaths.formUnion(paths.keys)
+        }
         for id in changedPaths {
-            if let points=paths[id] {let c=palette[Int(id % Int64(palette.count))];cachedPaths[id]=points.map{vertex($0,c)}}
+            guard let points = paths[id] else { continue }
+            let color = palette[Int(id % Int64(palette.count))]
+            cachedPaths[id] = points.indices.map { index in
+                let point = points[index]
+                guard smooth, index > 0, index < points.count - 1 else {
+                    return vertex(point, color)
+                }
+                let previous = points[index - 1]
+                let next = points[index + 1]
+                let averaged = CGPoint(x: (previous.x + 2 * point.x + next.x) / 4,
+                                       y: (previous.y + 2 * point.y + next.y) / 4)
+                return vertex(averaged, color)
+            }
         }
         changedPaths.removeAll(keepingCapacity:true)
         for (id,ps) in paths {
@@ -493,40 +526,6 @@ final class TouchMetal: MTKView, MTKViewDelegate {
         let newest=presentation.last ?? t
         if let first=presentation.firstIndex(where:{$0>=newest-1.5}),first>0 {presentation.removeFirst(first)}
         if presentation.count>240 {presentation.removeFirst(presentation.count-240)}
-    }
-}
-struct Trainer:View {
-    @State private var start=Date()
-    @State private var hits=0
-    @State private var count=0
-    @State private var gain=1.0
-    @State private var cursor:CGPoint?
-    private func target(_ size:CGSize,_ date:Date)->CGPoint {
-        let t=date.timeIntervalSince(start)
-        return CGPoint(x:25+max(0,size.width-50)*(0.5+0.44*sin(t*1.7)),y:25+max(0,size.height-50)*(0.5+0.39*cos(t*1.2)))
-    }
-    var body:some View {
-        VStack(spacing:15) {
-            Text("Kéo tâm theo mục tiêu di chuyển rồi nhả tay. Hệ số kéo chỉ áp dụng trong bài tập.").font(.subheadline).foregroundStyle(.secondary)
-            HStack {Tile(label:"Trúng",value:"\(hits)/\(count)");Tile(label:"Hệ số kéo",value:String(format:"%.2f×",gain))}
-            GeometryReader { geo in
-                TimelineView(.animation) { time in
-                    let p=target(geo.size,time.date)
-                    ZStack {
-                        RoundedRectangle(cornerRadius:20).fill(Color.black.opacity(0.5))
-                        Circle().strokeBorder(.mint,lineWidth:2).frame(width:44,height:44).position(p)
-                        Circle().fill(.white).frame(width:8,height:8).position(cursor ?? CGPoint(x:geo.size.width/2,y:geo.size.height/2))
-                    }.contentShape(Rectangle()).gesture(DragGesture(minimumDistance:0).onChanged{v in
-                        cursor=CGPoint(x:min(geo.size.width,max(0,geo.size.width/2+v.translation.width*gain)),y:min(geo.size.height,max(0,geo.size.height/2+v.translation.height*gain)))
-                    }.onEnded{_ in
-                        if count<20,let c=cursor {count += 1;let p=target(geo.size,Date());if hypot(c.x-p.x,c.y-p.y)<=22 {hits += 1}}
-                        cursor=nil
-                    })
-                }
-            }.frame(minHeight:240)
-            Slider(value:$gain,in:0.7...2,step:0.05).disabled(count>0)
-            Button("Bắt đầu lại") {hits=0;count=0;start=Date();cursor=nil}.buttonStyle(.borderedProminent)
-        }.padding().navigationTitle("Luyện tâm")
     }
 }
 struct History:View {
