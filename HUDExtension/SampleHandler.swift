@@ -27,6 +27,6 @@ final class SampleHandler: RPBroadcastSampleHandler {
         if now-lastPublish>=0.5 {lastPublish=now;publish("live",rate.fps)}
     }
     private func publish(_ state:String,_ fps:Double?) {
-        ScreenMetrics.write(ScreenSample(uptime:ProcessInfo.processInfo.systemUptime,fps:fps,state:state))
+        ScreenMetrics.write(ScreenSample(uptime:ProcessInfo.processInfo.systemUptime,fps:fps,state:state,p95MS:fps == nil ? nil:rate.p95MS,count:fps == nil ? nil:rate.count))
     }
 }

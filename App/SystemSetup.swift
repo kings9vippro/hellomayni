@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AppIntents
 
 struct SystemSetupView:View {
     @ObservedObject var lab:Lab
@@ -26,18 +27,17 @@ struct SystemSetupView:View {
                     Button("Kiểm tra lại"){refresh()}.buttonStyle(.bordered)
                 }
                 GlassPanel {
-                    Text("Phím tắt trước khi chơi").font(.headline)
-                    Text("Tạo một Phím tắt trên iPhone có tên dưới đây. Thêm các tác vụ hệ thống theo thứ tự:").font(.subheadline)
-                    Text("1. Đặt Chế độ nguồn điện thấp → Tắt\n2. Đặt Tập trung → Chơi trò chơi (nếu đã tạo)\n3. Mở ứng dụng → Free Fire VN").font(.subheadline)
-                    TextField("Tên phím tắt",text:$name).textFieldStyle(.roundedBorder)
-                    Button("Mở Phím tắt để thiết lập"){open(URL(string:"shortcuts://create-shortcut")!)}.buttonStyle(.bordered)
-                    Button {
-                        lab.prepareForGame()
-                        var c=URLComponents();c.scheme="shortcuts";c.host="run-shortcut";c.queryItems=[URLQueryItem(name:"name",value:name.trimmingCharacters(in:.whitespacesAndNewlines))]
-                        if let url=c.url {open(url)}
-                    } label:{Label("Chạy phím tắt đã tạo",systemImage:"play.fill").frame(maxWidth:.infinity).padding(7)}.buttonStyle(.borderedProminent).disabled(name.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
+                    Text("Phím tắt có sẵn").font(.headline)
+                    Text("Hai App Shortcuts được đăng ký cùng Touch Lab. Không cần tự nhập từng tác vụ.").font(.subheadline).foregroundStyle(.secondary)
+                    Label("Mở FPS nổi",systemImage:"pip.enter").font(.subheadline)
+                    Label("Chuẩn bị phiên chơi",systemImage:"bolt.fill").font(.subheadline)
+                    Button("Cài đặt phím tắt") {
+                        PrismShortcuts.updateAppShortcutParameters()
+                        open(URL(string:"shortcuts://")!)
+                    }.buttonStyle(.borderedProminent)
+                    ShortcutsLink()
                     Text(message).font(.caption).foregroundStyle(.secondary)
-                    Text("Chính Phím tắt mới thực thi các tác vụ hệ thống đã được bạn cho phép. Touch Lab không tự tạo hay chỉnh trợ năng bằng quyền riêng.").font(.caption).foregroundStyle(.secondary)
+                    Text("App Shortcuts chỉ thực hiện tác vụ của ứng dụng. Để đổi Nguồn điện thấp, Tập trung hoặc mở game, hãy thêm tác vụ hệ thống trong Phím tắt nếu cần.").font(.caption).foregroundStyle(.secondary)
                 }
                 GlassPanel {
                     Text("Ưu tiên trước khi vào rank").font(.headline)

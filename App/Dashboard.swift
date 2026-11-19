@@ -8,7 +8,7 @@ struct LabBackdrop: View {
             if scheme == .dark {
                 Color(red:0.025,green:0.045,blue:0.07)
                 RadialGradient(colors:[Color.teal.opacity(0.22),.clear],center:.topLeading,startRadius:0,endRadius:420)
-                RadialGradient(colors:[Color.blue.opacity(0.14),.clear],center:.bottomTrailing,startRadius:0,endRadius:340)
+                RadialGradient(colors:[Color.purple.opacity(0.19),.clear],center:.bottomTrailing,startRadius:0,endRadius:340)
             } else {
                 Color(red:0.93,green:0.97,blue:0.98)
                 RadialGradient(colors:[Color.mint.opacity(0.22),.clear],center:.topLeading,startRadius:0,endRadius:400)
@@ -41,9 +41,9 @@ struct Dashboard:View {
                 HStack(alignment:.center) {
                     VStack(alignment:.leading,spacing:5) {
                         Text("TOUCH LAB").font(.system(size:12,weight:.heavy,design:.monospaced)).tracking(4).foregroundStyle(.teal)
-                        Text("Touch Lab").font(.system(size:38,weight:.bold,design:.rounded))
+                        Text("Live diagnostics").font(.system(size:34,weight:.bold,design:.rounded))
                         Text("Chẩn đoán trên thiết bị").font(.caption).foregroundStyle(.secondary)
-                        Text("VERSION 8.0").font(.caption2.monospaced()).foregroundStyle(.mint)
+                        Text("PRISM / 9.0").font(.caption2.monospaced()).foregroundStyle(.mint)
                     }
                     Spacer()
                     Button {withAnimation(reduceMotion ? nil : .easeInOut(duration:0.22)){appearance.toggle()}} label:{Image(systemName:appearance ? "sun.max":"moon.stars").font(.title3).frame(width:44,height:44).background(.thinMaterial,in:Circle())}.buttonStyle(.plain).accessibilityLabel("Đổi giao diện")
@@ -78,6 +78,19 @@ struct Dashboard:View {
                         .padding(13).foregroundStyle(.black).background(Color.mint,in:RoundedRectangle(cornerRadius:15))
                     }.buttonStyle(LabPressStyle()).padding(.top,10)
                 }
+                GlassPanel {
+                    VStack(alignment:.leading,spacing:12) {
+                        HStack {Text("PRISM MONITOR").font(.caption.bold().monospaced()).tracking(2).foregroundStyle(.secondary);Spacer();Image(systemName:"pip").foregroundStyle(.mint)}
+                        HStack(alignment:.firstTextBaseline) {
+                            Text("FPS").font(.system(size:40,weight:.heavy,design:.rounded))
+                            Text("LIVE CAPTURE").font(.caption.bold()).foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        Capsule().fill(LinearGradient(colors:[.pink,.orange,.yellow,.mint,.cyan,.purple],startPoint:.leading,endPoint:.trailing)).frame(height:4)
+                        Button {selection=1} label:{Label("Mở FPS nổi",systemImage:"pip.enter").font(.headline).frame(maxWidth:.infinity).padding(13).background(Color.mint,in:RoundedRectangle(cornerRadius:15)).foregroundStyle(.black)}.buttonStyle(LabPressStyle())
+                    }
+                }
+                PrismTelemetryPanel()
                 Text("DỮ LIỆU ĐO").font(.caption.bold()).tracking(1.5).foregroundStyle(.secondary)
                 LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
                     Tile(label:"FPS gần nhất · trong app",value:lab.lastFPS>0 ? String(format:"%.1f",lab.lastFPS):"—")
@@ -98,7 +111,7 @@ struct Dashboard:View {
                     Divider()
                     Button {lab.resumeMeasurement();selection=0} label:{entry("Đo cảm ứng & GPU","Thu thập mẫu thật, kiểm tra đa điểm","hand.draw")}
                     Divider()
-                    NavigationLink {SystemSetupView(lab:lab)} label:{entry("Tự động hóa iOS","Phím tắt hệ thống và kiểm tra trợ năng","bolt.horizontal.circle")}
+                    NavigationLink {SystemSetupView(lab:lab)} label:{entry("Tự động hóa iOS","Phím tắt có sẵn và trạng thái trợ năng","bolt.horizontal.circle")}
                     Divider()
                     Button {selection=2} label:{entry("Lịch sử đo","So sánh bản gốc và bản tùy chỉnh","chart.line.uptrend.xyaxis")}
                     Divider()

@@ -2,9 +2,11 @@ import SwiftUI
 import UIKit
 import MetalKit
 import QuartzCore
+import AppIntents
 
 @main struct TouchOptimizerApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    init() { PrismShortcuts.updateAppShortcutParameters() }
     var body: some Scene { WindowGroup { MainView() } }
 }
 
@@ -111,6 +113,7 @@ struct MainView: View {
     @StateObject private var background = BackgroundSettings()
     @Environment(\.scenePhase) private var phase
     @State private var selection = 4
+    @AppStorage("prism.shortcut.request") private var shortcutRequest=""
     @AppStorage("ui.appearance.v4") private var appearance = true
     var body: some View {
         TabView(selection:$selection) {
@@ -137,14 +140,22 @@ struct MainView: View {
                 background.reload()
                 lab.deviceInfo()
                 lab.refreshStorage()
+                consumeShortcut()
             }
         }
         .onChange(of:lab.keepAwake) { _, value in
             UIApplication.shared.isIdleTimerDisabled = value && phase == .active
         }
-        .onAppear { UIDevice.current.isBatteryMonitoringEnabled=true; background.reload(); lab.deviceInfo(); lab.refreshStorage() }
+        .onAppear { UIDevice.current.isBatteryMonitoringEnabled=true; background.reload(); lab.deviceInfo(); lab.refreshStorage(); consumeShortcut() }
+        .onChange(of:shortcutRequest){_,_ in consumeShortcut()}
         .onReceive(NotificationCenter.default.publisher(for:ProcessInfo.thermalStateDidChangeNotification)) {_ in lab.deviceInfo()}
         .onReceive(NotificationCenter.default.publisher(for:Notification.Name.NSProcessInfoPowerStateDidChange)) {_ in lab.deviceInfo()}
+    }
+    private func consumeShortcut(){
+        guard !shortcutRequest.isEmpty else{return}
+        let request=shortcutRequest;shortcutRequest=""
+        if request.hasPrefix("fps|") {selection=1}
+        else if request.hasPrefix("prepare|") {lab.prepareForGame();if background.enabled {background.setEnabled(false)};selection=4}
     }
 }
 struct Tile: View {

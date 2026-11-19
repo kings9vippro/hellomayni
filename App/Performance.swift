@@ -103,7 +103,7 @@ struct PerformanceView:View {
                 NavigationLink { ExternalFPSView(lab:lab) } label: {
                     Label("Mở FPS nổi (PiP)",systemImage:"pip.enter")
                 }
-                Text("Bản HUD có ReplayKit; bản Pro/Lite có kiểm tra PiP độc lập.").font(.caption).foregroundStyle(.secondary)
+                Text("Bản HUD có ReplayKit; Pro/Lite mở PiP nhưng chưa có nguồn FPS.").font(.caption).foregroundStyle(.secondary)
             }
             Section("Tự động hóa thiết bị") {
                 NavigationLink {SystemSetupView(lab:lab)} label:{Label("Thiết lập iOS & Phím tắt",systemImage:"bolt.horizontal.circle")}
@@ -147,7 +147,7 @@ struct PerformanceView:View {
                 Text("iOS quyết định thời điểm thực thi; không chạy liên tục và không đo được FPS Free Fire. Khi chơi game nên tắt nếu muốn tránh tác vụ nền không cần thiết.").font(.caption).foregroundStyle(.secondary)
             } header:{Text("Chạy nền thật • có điều kiện")}
             Section {
-                Text("Kéo ô FPS nhỏ tới vị trí bạn muốn trong Touch Lab. Khi dừng bộ đo, ô hiện dấu gạch, không giả lập FPS. iOS không cho ứng dụng này phủ lên Free Fire.")
+                Text("Kéo ô FPS nhỏ tới vị trí bạn muốn trong Touch Lab. Khi dừng bộ đo, ô hiện dấu gạch, không giả lập FPS. PiP là cửa sổ hệ thống; không đo trực tiếp FPS render Free Fire.")
                 Text("Graphics HUD của Apple: Cài đặt → Nhà phát triển → Graphics HUD → Show Graphics HUD (nếu có). Tính năng này chỉ hiện ở ứng dụng phát triển tương thích; không đảm bảo hoạt động với Free Fire bản App Store.").font(.caption).foregroundStyle(.secondary)
                 Link("Hướng dẫn Metal HUD của Apple",destination:URL(string:"https://developer.apple.com/documentation/xcode/monitoring-your-metal-apps-graphics-performance")!)
                 Button("Mở cài đặt ứng dụng") {if let u=URL(string:UIApplication.openSettingsURLString){UIApplication.shared.open(u)}}

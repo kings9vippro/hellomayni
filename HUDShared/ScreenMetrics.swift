@@ -3,6 +3,8 @@ struct ScreenSample: Codable {
     let uptime: Double
     let fps: Double?
     let state: String
+    var p95MS: Double? = nil
+    var count: Int? = nil
 }
 enum ScreenMetrics {
     static let group = "group.com.touchlab.optimizer.hud"
@@ -37,6 +39,13 @@ struct CaptureRate {
         stamps.append(t)
         if let first=stamps.firstIndex(where:{$0>=t-1.25}),first>0 {stamps.removeFirst(first)}
         if stamps.count>256 {stamps.removeFirst(stamps.count-256)}
+    }
+    var count:Int {stamps.count}
+    var p95MS:Double? {
+        guard stamps.count>=3 else{return nil}
+        let gaps=zip(stamps.dropFirst(),stamps).map{($0.0-$0.1)*1000}.sorted()
+        guard !gaps.isEmpty else{return nil}
+        return gaps[max(0,Int(ceil(Double(gaps.count)*0.95))-1)]
     }
     var fps:Double? {
         guard stamps.count>=3,let first=stamps.first,let last=stamps.last,last-first>=0.24 else{return nil}
