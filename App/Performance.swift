@@ -99,14 +99,15 @@ struct PerformanceView:View {
     @Environment(\.scenePhase) private var phase
     var body:some View {
         List {
-            #if TOUCHLAB_SCREEN_HUD
             Section("FPS ngoài ứng dụng") {
                 NavigationLink { ExternalFPSView(lab:lab) } label: {
                     Label("Mở FPS nổi (PiP)",systemImage:"pip.enter")
                 }
-                Text("Tốc độ khung hình thu qua màn hình, không phải FPS GPU của game.").font(.caption).foregroundStyle(.secondary)
+                Text("Bản HUD có ReplayKit; bản Pro/Lite có kiểm tra PiP độc lập.").font(.caption).foregroundStyle(.secondary)
             }
-            #endif
+            Section("Tự động hóa thiết bị") {
+                NavigationLink {SystemSetupView(lab:lab)} label:{Label("Thiết lập iOS & Phím tắt",systemImage:"bolt.horizontal.circle")}
+            }
             Section {
                 HStack {Text("Nhiệt hệ thống");Spacer();Text(lab.thermal).foregroundStyle(.mint)}
                 HStack {Text("Nguồn điện thấp");Spacer();Text(lab.power ? "Bật":"Tắt").foregroundStyle(.secondary)}

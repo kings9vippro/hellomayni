@@ -33,3 +33,6 @@ On Apple Developer register explicit IDs com.touchlab.optimizer.hud and com.touc
     bash sign_hud.sh TouchLab-HUD-7.0.0-unsigned.ipa host.mobileprovision extension.mobileprovision CERT_SHA1 TouchLab-HUD-7-signed.ipa
 
 The signing helper verifies exact profile app IDs, team, App Groups authorization, expiration, certificate, device profile class and signatures. It does not generate or bypass Apple authorization. CI builds unsigned because no developer credentials are configured.
+
+## 8.0
+All editions include a user-started AVKit PiP thermal-state preview without App Groups. HUD edition additionally supports ReplayKit capture cadence with correctly signed host and extension App Groups. The new FPS tab replaces the trainer; trainer source removed. Background audio/PiP mode is declared on all editions; it is not a user-facing per-app permission. PiP is still controlled by iOS and requires physical testing. Device setup reads actual accessibility and power/thermal states, and invokes a user-created Shortcuts automation via Apple's shortcuts URL. No systemwide touch-gain or digitizer changes, no game render FPS or forced background execution. Use Pro/Lite for the PiP test first; HUD if you have matching profiles for capture. No credentials in repository.

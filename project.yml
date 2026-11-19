@@ -13,6 +13,8 @@ targets:
     sources:
       - App
       - Core
+      - HUDApp
+      - HUDShared
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.touchlab.optimizer
@@ -23,8 +25,8 @@ targets:
         INFOPLIST_FILE: Config/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: Touch Lab Pro
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        MARKETING_VERSION: '5.0.0'
-        CURRENT_PROJECT_VERSION: '5'
+        MARKETING_VERSION: '8.0.0'
+        CURRENT_PROJECT_VERSION: '8'
         TARGETED_DEVICE_FAMILY: '1'
         SWIFT_OBJC_BRIDGING_HEADER: App/Bridge.h
         HEADER_SEARCH_PATHS: '$(SRCROOT)/Core'

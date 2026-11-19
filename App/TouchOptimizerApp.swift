@@ -116,13 +116,13 @@ struct MainView: View {
         TabView(selection:$selection) {
             NavigationStack { Dashboard(lab:lab,background:background,selection:$selection,appearance:$appearance) }.tabItem { Label("Tổng quan",systemImage:"square.grid.2x2") }.tag(4)
             NavigationStack { Meter(lab:lab) }.tabItem { Label("Cảm ứng",systemImage:"hand.draw") }.tag(0)
-            NavigationStack { Trainer() }.tabItem { Label("Luyện tâm",systemImage:"scope") }.tag(1)
+            NavigationStack { ExternalFPSView(lab:lab) }.tabItem { Label("FPS nổi",systemImage:"pip.enter") }.tag(1)
             NavigationStack { History(lab:lab) }.tabItem { Label("So sánh",systemImage:"chart.bar") }.tag(2)
             NavigationStack { PerformanceView(lab:lab,background:background) }.tabItem { Label("Tối ưu",systemImage:"slider.horizontal.3") }.tag(3)
         }.tint(.mint)
-        .environment(\.colorScheme,appearance ? .dark : .light)
+        .preferredColorScheme(appearance ? .dark : .light)
         .overlay {
-            if lab.hudEnabled && phase == .active {
+            if lab.hudEnabled && phase == .active && selection == 0 {
                 FloatingFPS(lab:lab,active:selection == 0 && !lab.readyForGame)
             }
         }
@@ -165,7 +165,7 @@ struct Meter: View {
     var body:some View {
         ScrollView {
             VStack(alignment:.leading,spacing:14) {
-                Text("TOUCH LAB / PRO 5.0").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
+                Text("TOUCH LAB / PRO 8.0").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
                 Text("Đo cảm ứng thật").font(.largeTitle.bold())
                 Text("Vuốt thẳng, chạm nhiều ngón hoặc kéo nhanh. Số liệu từ UIKit và Metal.").font(.subheadline).foregroundStyle(.secondary)
                 Toggle("Chỉ hiện vùng đo FPS",isOn:$lab.compactMeter).font(.subheadline)

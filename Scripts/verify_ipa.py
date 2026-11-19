@@ -10,7 +10,7 @@ with zipfile.ZipFile(ipa) as z:
         assert info.get(k) and "$(" not in str(info[k]), (k,info.get(k))
     assert info["CFBundleIdentifier"]==expected
     assert info["CFBundlePackageType"]=="APPL"
-    assert info["CFBundleShortVersionString"]=="5.0.0"
+    assert info["CFBundleShortVersionString"]=="8.0.0"
     assert tuple(map(int,info["MinimumOSVersion"].split("."))) <= (18,7,2)
     assert 1 in info.get("UIDeviceFamily",[]), info.get("UIDeviceFamily")
     assert info.get("CFBundleSupportedPlatforms")==["iPhoneOS"]
@@ -18,5 +18,6 @@ with zipfile.ZipFile(ipa) as z:
     magic,cpu,subtype,ftype=struct.unpack_from("<IIII",binary)
     assert magic==0xfeedfacf and cpu==0x0100000c and ftype==2,(hex(magic),hex(cpu),ftype)
     assert not any(".appex/" in x for x in z.namelist())
+    assert "audio" in info.get("UIBackgroundModes",[])
     assert ("fetch" in info.get("UIBackgroundModes",[]))==(expected=="com.touchlab.optimizer")
     print("IPA verified:",ipa.name,expected,info["CFBundleShortVersionString"],"min iOS",info["MinimumOSVersion"],"ARM64")

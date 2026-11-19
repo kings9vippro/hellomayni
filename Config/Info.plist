@@ -14,5 +14,5 @@
 <key>UILaunchScreen</key><dict/>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
 <key>BGTaskSchedulerPermittedIdentifiers</key><array><string>com.touchlab.optimizer.refresh</string></array>
-<key>UIBackgroundModes</key><array><string>fetch</string></array>
+<key>UIBackgroundModes</key><array><string>fetch</string><string>audio</string></array>
 </dict></plist>

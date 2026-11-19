@@ -33,21 +33,20 @@ struct Dashboard:View {
     @Binding var selection:Int
     @Binding var appearance:Bool
     @Environment(\.scenePhase) private var phase
-    @State private var confirmClear=false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared=false
     var body:some View {
         ScrollView {
             VStack(alignment:.leading,spacing:15) {
                 HStack(alignment:.center) {
                     VStack(alignment:.leading,spacing:5) {
                         Text("TOUCH LAB").font(.system(size:12,weight:.heavy,design:.monospaced)).tracking(4).foregroundStyle(.teal)
-                        Text("Touch control").font(.system(size:32,weight:.bold,design:.rounded))
+                        Text("Touch Lab").font(.system(size:38,weight:.bold,design:.rounded))
                         Text("Chẩn đoán trên thiết bị").font(.caption).foregroundStyle(.secondary)
-                        #if TOUCHLAB_SCREEN_HUD
-                        Text("HUD EDITION / 7.0").font(.caption2.monospaced()).foregroundStyle(.mint)
-                        #endif
+                        Text("VERSION 8.0").font(.caption2.monospaced()).foregroundStyle(.mint)
                     }
                     Spacer()
-                    Button {appearance.toggle()} label:{Image(systemName:appearance ? "sun.max":"moon.stars").font(.title3).frame(width:44,height:44).background(.thinMaterial,in:Circle())}.buttonStyle(.plain).accessibilityLabel("Đổi giao diện")
+                    Button {withAnimation(reduceMotion ? nil : .easeInOut(duration:0.22)){appearance.toggle()}} label:{Image(systemName:appearance ? "sun.max":"moon.stars").font(.title3).frame(width:44,height:44).background(.thinMaterial,in:Circle())}.buttonStyle(.plain).accessibilityLabel("Đổi giao diện")
                 }
                 GlassPanel {
                     HStack(alignment:.center,spacing:14) {
@@ -70,12 +69,14 @@ struct Dashboard:View {
                     }
                     Button {
                         lab.deviceInfo()
-                        if lab.readyForGame {lab.resumeMeasurement();selection=0}
-                        else {lab.prepareForGame();if background.enabled {background.setEnabled(false)}}
+                        withAnimation(reduceMotion ? nil : .spring(response:0.32,dampingFraction:0.82)) {
+                            if lab.readyForGame {lab.resumeMeasurement();selection=0}
+                            else {lab.prepareForGame();if background.enabled {background.setEnabled(false)}}
+                        }
                     } label: {
                         HStack {Image(systemName:lab.readyForGame ? "play.fill":"bolt.fill");Text(lab.readyForGame ? "Tiếp tục kiểm tra":"Chuẩn bị vào game").fontWeight(.semibold);Spacer();Image(systemName:"arrow.right")}
                         .padding(13).foregroundStyle(.black).background(Color.mint,in:RoundedRectangle(cornerRadius:15))
-                    }.buttonStyle(.plain).padding(.top,10)
+                    }.buttonStyle(LabPressStyle()).padding(.top,10)
                 }
                 Text("DỮ LIỆU ĐO").font(.caption.bold()).tracking(1.5).foregroundStyle(.secondary)
                 LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
@@ -93,18 +94,16 @@ struct Dashboard:View {
                     Text("Các chế độ tác động trực tiếp đến bộ đo của Touch Lab, không ép xung hay chỉnh cảm ứng Free Fire.").font(.caption).foregroundStyle(.secondary)
                 }
                 GlassPanel {
-                    #if TOUCHLAB_SCREEN_HUD
-                    NavigationLink {ExternalFPSView(lab:lab)} label:{entry("FPS nổi ngoài app","Đo tốc độ khung hình thu màn hình","pip.enter")}
+                    Button {selection=1} label:{entry("Live FPS · PiP","Kiểm tra cửa sổ nổi và nguồn dữ liệu","pip.enter")}
                     Divider()
-                    #endif
                     Button {lab.resumeMeasurement();selection=0} label:{entry("Đo cảm ứng & GPU","Thu thập mẫu thật, kiểm tra đa điểm","hand.draw")}
                     Divider()
-                    Button {selection=1} label:{entry("Luyện kéo tâm","Mục tiêu di chuyển, độ nhạy tùy chỉnh","scope")}
+                    NavigationLink {SystemSetupView(lab:lab)} label:{entry("Tự động hóa iOS","Phím tắt hệ thống và kiểm tra trợ năng","bolt.horizontal.circle")}
                     Divider()
                     Button {selection=2} label:{entry("Lịch sử đo","So sánh bản gốc và bản tùy chỉnh","chart.line.uptrend.xyaxis")}
                     Divider()
                     Button {selection=3} label:{entry("Cài đặt chuyên sâu","Nhiệt, chế độ nền, hướng dẫn","slider.horizontal.3")}
-                }.buttonStyle(.plain)
+                }.buttonStyle(LabPressStyle())
                 if let date=lab.preparationDate {
                     GlassPanel {
                         Text("Phiên chuẩn bị gần nhất").font(.headline)
@@ -114,8 +113,10 @@ struct Dashboard:View {
                 }
                 Text("Không cần tài khoản • Không gửi dữ liệu lên mạng").font(.caption).foregroundStyle(.secondary).frame(maxWidth:.infinity)
             }.padding(16)
+             .opacity(appeared ? 1 : 0.92)
+             .offset(y:appeared ? 0 : 8)
         }.background(LabBackdrop()).toolbar(.hidden,for:.navigationBar)
-         .onAppear{lab.deviceInfo();background.reload()}
+         .onAppear{lab.deviceInfo();background.reload();withAnimation(reduceMotion ? nil : .easeOut(duration:0.26)){appeared=true}}
          .onChange(of:phase){_,v in if v == .active {lab.deviceInfo();background.reload()}}
     }
     func entry(_ title:String,_ subtitle:String,_ icon:String)->some View {
@@ -124,5 +125,15 @@ struct Dashboard:View {
             VStack(alignment:.leading,spacing:3){Text(title).font(.subheadline.weight(.semibold));Text(subtitle).font(.caption).foregroundStyle(.secondary)}
             Spacer();Image(systemName:"chevron.right").font(.caption).foregroundStyle(.secondary)
         }.padding(.vertical,4).contentShape(Rectangle())
+    }
+}
+
+struct LabPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func makeBody(configuration:Configuration)->some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration:0.14),value:configuration.isPressed)
     }
 }
