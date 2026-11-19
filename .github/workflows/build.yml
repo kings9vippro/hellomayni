@@ -1,6 +1,16 @@
-name: Build Touch Lab Pro 5 IPA
+name: Build Touch Lab Pro IPA
 on:
   push:
+    branches: [main]
+    paths:
+      - 'App/**'
+      - 'Core/**'
+      - 'Tests/**'
+      - 'Config/**'
+      - 'Scripts/**'
+      - 'project.yml'
+      - '.github/workflows/build.yml'
+  pull_request:
     branches: [main]
     paths:
       - 'App/**'
@@ -57,12 +67,12 @@ jobs:
           mkdir -p dist Payload
           cp -R "$RUNNER_TEMP/derived/Build/Products/Release-iphoneos/TouchOptimizerPro.app" Payload/
           file Payload/TouchOptimizerPro.app/TouchOptimizerPro
-          zip -qry "dist/TouchLab-$VARIANT-5.0.0-unsigned.ipa" Payload
-          python3 Scripts/verify_ipa.py "dist/TouchLab-$VARIANT-5.0.0-unsigned.ipa" "$BUNDLE_ID"
+          zip -qry "dist/TouchLab-$VARIANT-5.1.0-unsigned.ipa" Payload
+          python3 Scripts/verify_ipa.py "dist/TouchLab-$VARIANT-5.1.0-unsigned.ipa" "$BUNDLE_ID"
           shasum -a 256 dist/*.ipa > dist/SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: TouchLab-${{ matrix.variant }}-5-unsigned
+          name: TouchLab-${{ matrix.variant }}-5.1.0-unsigned
           path: dist/
           if-no-files-found: error
           retention-days: 90

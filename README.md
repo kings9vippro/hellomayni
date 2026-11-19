@@ -20,3 +20,38 @@ New dashboard, glass cards, light/dark appearance, actual measured device metric
 
 ## 5.0
 Compact draggable FPS-only overlay within app, compact meter, measured GPU command duration, battery and estimated available storage, foreground thermal notifications, immediate deactivation and memory warning handling, thermal hysteresis, constant-memory per-stroke line deviation using running covariance and bounded sample ring, cached percentile queries, extended long-stroke tests. Apple Graphics HUD instructions for compatible developer apps. No cross-app overlay, kernel modification, system digitizer boost or guaranteed gains in another app. Rebuild produces Pro and Lite unsigned packages.
+
+## Cài Touch Lab Pro trên iPhone
+
+Các file có tên `-unsigned.ipa` trong GitHub Actions chỉ dùng để kiểm tra bản
+build hoặc làm đầu vào cho quy trình ký. iOS cần chữ ký và provisioning profile
+hợp lệ để cài lên iPhone.
+
+1. Trên Mac, mở Xcode và thêm Apple ID ở **Xcode → Settings → Accounts**. Tại
+   thư mục repo, chạy `brew install xcodegen` rồi `xcodegen generate`.
+2. Mở `TouchOptimizerPro.xcodeproj`, chọn target **TouchOptimizerPro** rồi vào
+   **Signing & Capabilities**. Bật **Automatically manage signing** và chọn
+   **Team** của bạn. Nếu Team không đăng ký được bundle ID mặc định, đặt bundle
+   ID riêng, ví dụ `com.tenban.touchlabpro`.
+3. Kết nối iPhone chạy iOS 18 trở lên, xác nhận tin cậy máy Mac và bật **Developer
+   Mode** nếu iOS yêu cầu. Chọn iPhone trong Xcode rồi nhấn **Run**. Xcode sẽ
+   tạo profile phát triển, ký và cài ứng dụng bằng Team đã chọn.
+
+Nếu đang thay thế bản đã ký bằng Team khác, dùng bundle ID riêng để cài song song
+và giữ dữ liệu của bản cũ. Nếu cần phân phối IPA cho một iPhone khác, dùng
+**Product → Archive → Distribute App** với tài khoản Apple Developer có quyền
+phân phối. Với bản Ad Hoc, profile phải chứa UDID của iPhone nhận bản cài.
+
+Nếu iPhone vẫn báo không thể cài, xem thông báo chi tiết trong Xcode khi chạy
+trên máy. Với IPA đã ký, đối chiếu Team, bundle ID, hạn profile, danh sách thiết
+bị được phép và phiên bản iOS tối thiểu của chính bản IPA đó.
+
+## 5.1.0
+
+- Nút **Đo FPS và hiện HUD** mở bộ đo Metal thu gọn. Có thể kéo HUD hình chữ
+  nhật hoặc ẩn/hiện ngay từ thanh công cụ. App lưu lựa chọn hiển thị.
+- Mục **Đo cảm ứng** có tùy chọn làm mượt nét vẽ, giữ nguyên mẫu UIKit gốc để
+  tính tần suất, độ trễ và khoảng cách thời gian giữa các mẫu. Mục luyện tâm
+  được gỡ khỏi ứng dụng.
+- Nút **Free Fire VN trên App Store** dừng bộ đo và mở trang game. Nếu đã cài,
+  nhấn **Mở** trên App Store. Mục **Tối ưu** có hướng dẫn chỉnh độ nhạy trong game.
