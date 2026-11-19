@@ -44,7 +44,7 @@ struct Dashboard:View {
                         Text("Chẩn đoán trên thiết bị").font(.caption).foregroundStyle(.secondary)
                         #if TOUCHLAB_SCREEN_HUD
                         Text("HUD EDITION / 7.0").font(.caption2.monospaced()).foregroundStyle(.mint)
-                        #endif.font(.caption).foregroundStyle(.secondary)
+                        #endif
                     }
                     Spacer()
                     Button {appearance.toggle()} label:{Image(systemName:appearance ? "sun.max":"moon.stars").font(.title3).frame(width:44,height:44).background(.thinMaterial,in:Circle())}.buttonStyle(.plain).accessibilityLabel("Đổi giao diện")
