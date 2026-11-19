@@ -7,7 +7,7 @@ with zipfile.ZipFile(sys.argv[1]) as z:
     plugin=plistlib.loads(z.read(ext+"Info.plist"))
     assert host["CFBundleIdentifier"]=="com.touchlab.optimizer.hud"
     assert plugin["CFBundleIdentifier"]==host["CFBundleIdentifier"]+".broadcast"
-    assert host["CFBundleShortVersionString"]==plugin["CFBundleShortVersionString"]=="9.0.0"
+    assert host["CFBundleShortVersionString"]==plugin["CFBundleShortVersionString"]=="10.0.0"
     assert host["CFBundleVersion"]==plugin["CFBundleVersion"]
     assert "audio" in host["UIBackgroundModes"]
     assert plugin["NSExtension"]["NSExtensionPointIdentifier"]=="com.apple.broadcast-services-upload"

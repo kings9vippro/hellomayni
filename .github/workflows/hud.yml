@@ -1,4 +1,4 @@
-name: Build Touch Lab HUD 9
+name: Build Touch Lab HUD 10
 on:
   push:
     branches: [main]
@@ -65,13 +65,13 @@ jobs:
         run: |
           mkdir -p dist Payload
           cp -R "$RUNNER_TEMP/derived/Build/Products/Release-iphoneos/TouchLabHUD.app" Payload/
-          zip -qry dist/TouchLab-HUD-9.0.0-unsigned.ipa Payload
-          python3 Scripts/verify_hud.py dist/TouchLab-HUD-9.0.0-unsigned.ipa
+          zip -qry dist/TouchLab-HUD-10.0.0-unsigned.ipa Payload
+          python3 Scripts/verify_hud.py dist/TouchLab-HUD-10.0.0-unsigned.ipa
           cp HUDConfig/Groups.entitlements Scripts/sign_hud.sh dist/
           shasum -a 256 dist/*.ipa > dist/SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: TouchLab-HUD-9-unsigned
+          name: TouchLab-HUD-10-unsigned
           path: dist/
           retention-days: 90
           if-no-files-found: error

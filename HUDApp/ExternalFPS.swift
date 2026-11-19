@@ -17,6 +17,9 @@ final class CaptureHUD: NSObject, ObservableObject, AVPictureInPictureSampleBuff
     @Published var receiving=false
     @Published var launching=false
     @Published var captureMode=true
+    private var foreground=true
+    private var sourceLabel="CAP FPS"
+    private var statusLabel="WAITING"
     @Published var frameP95:Double?
     @Published var sampleCount:Int?
     @Published var rainbow=true
@@ -38,6 +41,18 @@ final class CaptureHUD: NSObject, ObservableObject, AVPictureInPictureSampleBuff
     private var playing=true
     private let width=480,height=216
     @Published private(set) var groupAvailable=false
+    func foregroundChanged(_ active:Bool) {
+        foreground=active
+        if tick != nil {
+            if !active && !captureMode {layer.flushAndRemoveImage();cachedImage=nil;statusLabel="APP PAUSED";draw(nil)}
+            else {update()}
+        }
+    }
+    func selectSource(capture:Bool) {
+        guard !floating && !launching else{return}
+        captureMode=capture
+        if tick != nil {update()}
+    }
     func prepare() {
         previewVisible=true
         if tick != nil {return}
@@ -73,7 +88,10 @@ final class CaptureHUD: NSObject, ObservableObject, AVPictureInPictureSampleBuff
         issue=nil
         // Open a genuine PiP even before a capture stream is available. Never substitute synthetic FPS.
         guard let c=controller,!c.isPictureInPictureActive,!launching else{return}
-        captureMode=true
+        groupAvailable=extensionInstalled && ScreenMetrics.probe()
+        if capture && !groupAvailable {issue="Cần bản HUD đã ký đúng App Groups.";return}
+        if capture && !receiving {issue="Bắt đầu truyền màn hình và đợi số FPS.";return}
+        captureMode=capture
         startGeneration += 1
         let generation=startGeneration
         do {
@@ -138,8 +156,11 @@ final class CaptureHUD: NSObject, ObservableObject, AVPictureInPictureSampleBuff
         else if s?.state=="ended" {label="Đã kết thúc ghi"}
         else {label="Đang chờ mẫu"}
         if state != label {state=label}
+        let local=foreground ? InterfaceCadence.shared.hz : nil
+        sourceLabel=captureMode ? "CAP FPS":"UI Hz"
+        statusLabel=captureMode ? (value == nil ? "WAITING":"LIVE CAPTURE") : (local != nil ? "TOUCH LAB":(foreground ? "WAITING":"APP PAUSED"))
         guard playing else{return}
-        draw(value)
+        draw(captureMode ? value : local)
     }
     private func draw(_ fps:Double?) {
         if layer.status == .failed {layer.flush()}
@@ -148,8 +169,8 @@ final class CaptureHUD: NSObject, ObservableObject, AVPictureInPictureSampleBuff
         let aux=[kCVPixelBufferPoolAllocationThresholdKey as String:4] as CFDictionary
         guard CVPixelBufferPoolCreatePixelBufferWithAuxAttributes(kCFAllocatorDefault,pool,aux,&pixel)==kCVReturnSuccess,let pixel=pixel else{return}
         let number=fps.map{String(format:"%.0f",$0)} ?? "—"
-        let status=fps != nil ? "LIVE CAPTURE" : (groupAvailable ? "WAITING" : "NO SOURCE")
-        let key=number+"|"+status+"|"+String(rainbow)
+        let status=statusLabel
+        let key=number+"|"+status+"|"+sourceLabel+"|"+String(rainbow)
         if cachedImage == nil || key != cachedLabel {
             let format=UIGraphicsImageRendererFormat();format.scale=1;format.opaque=true
             let image=UIGraphicsImageRenderer(size:CGSize(width:width,height:height),format:format).image{renderer in
@@ -169,7 +190,7 @@ final class CaptureHUD: NSObject, ObservableObject, AVPictureInPictureSampleBuff
                     outline.lineWidth=4;outline.stroke()
                 }
                 (number as NSString).draw(in:CGRect(x:34,y:38,width:230,height:142),withAttributes:[.font:UIFont.monospacedDigitSystemFont(ofSize:104,weight:.heavy),.foregroundColor:UIColor.white])
-                ("FPS" as NSString).draw(in:CGRect(x:274,y:65,width:168,height:55),withAttributes:[.font:UIFont.systemFont(ofSize:42,weight:.bold),.foregroundColor:UIColor.white])
+                (sourceLabel as NSString).draw(in:CGRect(x:274,y:65,width:168,height:55),withAttributes:[.font:UIFont.systemFont(ofSize:sourceLabel.count>5 ? 34:42,weight:.bold),.foregroundColor:UIColor.white])
                 (status as NSString).draw(in:CGRect(x:274,y:124,width:182,height:30),withAttributes:[.font:UIFont.monospacedSystemFont(ofSize:19,weight:.semibold),.foregroundColor:fps == nil ? UIColor.lightGray:UIColor.systemMint])
             }
             cachedImage=image.cgImage;cachedLabel=key
@@ -222,78 +243,83 @@ struct ScreenPicker:UIViewRepresentable {
 struct ExternalFPSView:View {
     @ObservedObject var lab:Lab
     @StateObject private var monitor=CaptureHUD.shared
+    @ObservedObject private var cadence=InterfaceCadence.shared
     @Environment(\.scenePhase) private var phase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("prism.rainbow") private var rainbow=true
+    @AppStorage("pulse.interface.enabled") private var interfaceEnabled=true
     @State private var details=false
-    var body: some View {
+    @State private var screenMode=false
+    var body:some View {
         ScrollView {
-            VStack(alignment:.leading,spacing:16) {
-                Text("TOUCH LAB  /  09").font(.caption.bold().monospaced()).tracking(3).foregroundStyle(.mint)
+            VStack(alignment:.leading,spacing:15) {
+                Text("PULSE / 10.0").font(.caption.monospaced().bold()).tracking(3).foregroundStyle(.cyan)
                 Text("Live monitor").font(.system(size:38,weight:.bold,design:.rounded))
-                Text("FPS nổi · Prism edition").font(.subheadline).foregroundStyle(.secondary)
+                Text("Hai nguồn đo độc lập").font(.subheadline).foregroundStyle(.secondary)
                 GlassPanel {
-                    VStack(alignment:.leading,spacing:14) {
-                        HStack {
-                            Label(monitor.receiving ? "LIVE CAPTURE":"CHỜ NGUỒN",systemImage:monitor.receiving ? "waveform":"circle.dashed").font(.caption.bold()).foregroundStyle(monitor.receiving ? Color.mint:Color.secondary)
-                            Spacer()
-                            Text(monitor.floating ? "PiP ON":"PREVIEW").font(.caption.monospaced())
-                        }
-                        PreviewSurface(monitor:monitor).aspectRatio(480.0/216.0,contentMode:.fit).frame(maxWidth:280).clipShape(RoundedRectangle(cornerRadius:16)).frame(maxWidth:.infinity)
-                        Text(monitor.state).font(.caption).foregroundStyle(.secondary)
-                        Button {
-                            monitor.start(capture:true)
-                        } label:{
-                            Label(monitor.launching ? "Đang mở…" : (monitor.floating ? "PiP đang hoạt động":"Mở FPS nổi"),systemImage:"pip.enter")
-                                .font(.headline).frame(maxWidth:.infinity).padding(14).foregroundStyle(.black).background(Color.mint,in:RoundedRectangle(cornerRadius:16))
-                        }.buttonStyle(LabPressStyle()).disabled(monitor.launching || monitor.floating || !AVPictureInPictureController.isPictureInPictureSupported())
-                        Toggle("Viền Rainbow",isOn:$rainbow)
-                        Text("Thu nhỏ bằng hai ngón tay trên khung PiP; iOS quyết định kích thước nhỏ nhất.").font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        Text(screenMode ? "CAPTURE FPS":"UI Hz").font(.caption.monospaced().bold()).tracking(1.5)
+                        Spacer()
+                        Label(monitor.floating ? "PiP ON":"PREVIEW",systemImage:monitor.floating ? "circle.fill":"circle").font(.caption2.monospaced()).foregroundStyle(.cyan)
                     }
-                }
-                if monitor.extensionInstalled && monitor.groupAvailable {
-                    GlassPanel {
-                        HStack {
-                            VStack(alignment:.leading,spacing:5) {
-                                Text("Nguồn dữ liệu trực tiếp").font(.headline)
-                                Text("Bắt đầu truyền Touch Lab FPS Capture.").font(.caption).foregroundStyle(.secondary)
+                    PreviewSurface(monitor:monitor).aspectRatio(480.0/216.0,contentMode:.fit).clipShape(RoundedRectangle(cornerRadius:17))
+                    Picker("Nguồn đo",selection:$screenMode) {
+                        Text("Touch Lab").tag(false)
+                        Text("Ngoài app").tag(true)
+                    }.pickerStyle(.segmented).disabled(monitor.floating || monitor.launching)
+                    Text(screenMode ? "Đếm khung hình ReplayKit. Không phải FPS render của game." : "Nhịp callback giao diện Touch Lab. Không ghi màn hình. Dừng khi ra ngoài app.").font(.caption).foregroundStyle(.secondary)
+                    if screenMode {
+                        if monitor.extensionInstalled && monitor.groupAvailable {
+                            HStack {
+                                VStack(alignment:.leading,spacing:5) {
+                                    Text("1 · Bắt đầu truyền").font(.headline)
+                                    Text("Chọn Touch Lab FPS Capture, tắt mic.").font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer();ScreenPicker().frame(width:54,height:54)
                             }
-                            Spacer();ScreenPicker().frame(width:54,height:54)
-                        }
-                        LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:10) {
-                            Tile(label:"Capture FPS",value:monitor.fps.map{String(format:"%.1f",$0)} ?? "—")
-                            Tile(label:"P95 khung · ms",value:monitor.frameP95.map{String(format:"%.1f",$0)} ?? "—")
-                            Tile(label:"Mẫu trong cửa sổ",value:monitor.sampleCount.map{String($0)} ?? "—")
-                            Tile(label:"Tuổi mẫu · s",value:monitor.frameAge.map{String(format:"%.1f",$0)} ?? "—")
+                            Text(monitor.state).font(.caption).foregroundStyle(monitor.receiving ? Color.mint:Color.secondary)
+                        } else {
+                            Text(monitor.extensionInstalled ? "Thiếu App Groups trong chữ ký. Ký app và extension bằng profile hợp lệ." : "Bản Pro/Lite không có ReplayKit extension. Cài HUD 10 để đo ngoài app.").font(.subheadline).foregroundStyle(.orange)
                         }
                     }
-                } else {
-                    GlassPanel {
-                        Label("Chưa có nguồn FPS",systemImage:"waveform.slash").font(.headline)
-                        Text(monitor.extensionInstalled ? "App và extension cần cùng App Group được cấp trong provisioning profile." : "Bản Pro/Lite mở được PiP, nhưng chỉ bản HUD có extension ReplayKit. Không hiển thị FPS ước đoán.").font(.caption).foregroundStyle(.secondary)
+                    Button {monitor.start(capture:screenMode)} label:{
+                        Label(monitor.launching ? "Đang kết nối…" : (monitor.floating ? "PiP đang mở":"Mở cửa sổ nổi"),systemImage:"pip.enter")
+                    }.buttonStyle(PulsePrimary()).disabled(monitor.launching || monitor.floating || !AVPictureInPictureController.isPictureInPictureSupported() || (screenMode && !monitor.receiving) || (!screenMode && cadence.hz == nil))
+                    if monitor.floating || monitor.launching {
+                        Button("Đóng cửa sổ nổi",role:.destructive){monitor.stop()}.frame(maxWidth:.infinity)
                     }
+                    Toggle("Viền Rainbow",isOn:$rainbow)
+                    Toggle("Đo nhịp giao diện",isOn:$interfaceEnabled)
+                }
+                LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:10) {
+                    Tile(label:"Nhịp Touch Lab",value:cadence.hz.map{String(format:"%.1f Hz",$0)} ?? "—")
+                    Tile(label:"Capture FPS",value:monitor.fps.map{String(format:"%.1f",$0)} ?? "—")
+                    Tile(label:"P95 UI · ms",value:cadence.p95.map{String(format:"%.1f",$0)} ?? "—")
+                    Tile(label:"P95 Capture · ms",value:monitor.frameP95.map{String(format:"%.1f",$0)} ?? "—")
                 }
                 GlassPanel {
                     DisclosureGroup(isExpanded:$details) {
                         check("PiP hỗ trợ",AVPictureInPictureController.isPictureInPictureSupported())
                         check("PiP sẵn sàng",monitor.possible)
-                        check("ReplayKit",monitor.extensionInstalled)
+                        check("ReplayKit extension",monitor.extensionInstalled)
                         check("App Groups",monitor.groupAvailable)
-                        check("Dữ liệu mới",monitor.receiving)
+                        check("Mẫu capture mới",monitor.receiving)
                     } label:{Text("Chẩn đoán kết nối").font(.headline)}
                 }
-                if monitor.floating || monitor.launching {
-                    Button("Đóng FPS nổi",role:.destructive){monitor.stop()}.buttonStyle(.bordered).frame(maxWidth:.infinity)
-                }
                 if let issue=monitor.issue{Text(issue).font(.caption).foregroundStyle(.orange).textSelection(.enabled)}
-                Text("CAP FPS đo nhịp khung hình ReplayKit, không phải FPS render của Free Fire. Capture và PiP có thể gây thêm tải. Dừng truyền màn hình tại Trung tâm điều khiển khi không dùng.").font(.caption).foregroundStyle(.secondary)
-            }.padding(16)
-        }.background(LabBackdrop()).navigationTitle("FPS nổi").navigationBarTitleDisplayMode(.inline)
-        .onAppear {lab.prepareForGame();monitor.rainbow=rainbow;monitor.prepare()}
+                Text("Khi ra ngoài app, chỉ chế độ Capture có dữ liệu nếu broadcast chạy và iOS cho phép. Dừng truyền trong Trung tâm điều khiển khi dùng xong. Không lưu hoặc gửi hình ảnh.").font(.caption).foregroundStyle(.secondary)
+            }.padding(18)
+        }.background(LabBackdrop()).toolbar(.hidden,for:.navigationBar)
+        .onAppear {
+            monitor.rainbow=rainbow;monitor.prepare()
+            if monitor.floating {screenMode=monitor.captureMode}
+            else {screenMode=monitor.extensionInstalled && monitor.groupAvailable;monitor.selectSource(capture:screenMode)}
+        }
         .onDisappear {monitor.leavePreview()}
+        .onChange(of:screenMode){_,v in monitor.selectSource(capture:v)}
         .onChange(of:rainbow){_,v in monitor.rainbow=v}
         .onChange(of:phase){_,v in if v == .active {monitor.prepare()}}
-        .animation(reduceMotion ? nil : .spring(response:0.27,dampingFraction:0.84),value:monitor.floating)
+        .animation(reduceMotion ? nil : .spring(response:0.28,dampingFraction:0.82),value:screenMode)
     }
     func check(_ title:String,_ yes:Bool)->some View {
         HStack {Image(systemName:yes ? "checkmark.circle.fill":"circle.dashed").foregroundStyle(yes ? Color.mint:Color.secondary);Text(title).font(.subheadline);Spacer();Text(yes ? "OK":"—").font(.caption.monospaced())}.padding(.top,5)

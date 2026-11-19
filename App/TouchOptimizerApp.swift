@@ -113,6 +113,7 @@ struct MainView: View {
     @StateObject private var background = BackgroundSettings()
     @Environment(\.scenePhase) private var phase
     @State private var selection = 4
+    @AppStorage("pulse.interface.enabled") private var interfaceEnabled=true
     @AppStorage("prism.shortcut.request") private var shortcutRequest=""
     @AppStorage("ui.appearance.v4") private var appearance = true
     var body: some View {
@@ -130,6 +131,8 @@ struct MainView: View {
             }
         }
         .onChange(of:phase) { _, value in
+            InterfaceCadence.shared.setActive(value == .active && interfaceEnabled)
+            CaptureHUD.shared.foregroundChanged(value == .active)
             UIApplication.shared.isIdleTimerDisabled = value == .active && lab.keepAwake
             if value == .background {
                 UIDevice.current.isBatteryMonitoringEnabled=false
@@ -146,7 +149,8 @@ struct MainView: View {
         .onChange(of:lab.keepAwake) { _, value in
             UIApplication.shared.isIdleTimerDisabled = value && phase == .active
         }
-        .onAppear { UIDevice.current.isBatteryMonitoringEnabled=true; background.reload(); lab.deviceInfo(); lab.refreshStorage(); consumeShortcut() }
+        .onChange(of:interfaceEnabled){_,v in InterfaceCadence.shared.setActive(v && phase == .active)}
+        .onAppear { InterfaceCadence.shared.setActive(phase == .active && interfaceEnabled); UIDevice.current.isBatteryMonitoringEnabled=true; background.reload(); lab.deviceInfo(); lab.refreshStorage(); consumeShortcut() }
         .onChange(of:shortcutRequest){_,_ in consumeShortcut()}
         .onReceive(NotificationCenter.default.publisher(for:ProcessInfo.thermalStateDidChangeNotification)) {_ in lab.deviceInfo()}
         .onReceive(NotificationCenter.default.publisher(for:Notification.Name.NSProcessInfoPowerStateDidChange)) {_ in lab.deviceInfo()}
@@ -176,7 +180,7 @@ struct Meter: View {
     var body:some View {
         ScrollView {
             VStack(alignment:.leading,spacing:14) {
-                Text("TOUCH LAB / PRO 8.0").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
+                Text("TOUCH LAB / PULSE 10").font(.caption.bold()).tracking(3).foregroundStyle(.mint)
                 Text("Đo cảm ứng thật").font(.largeTitle.bold())
                 Text("Vuốt thẳng, chạm nhiều ngón hoặc kéo nhanh. Số liệu từ UIKit và Metal.").font(.subheadline).foregroundStyle(.secondary)
                 Toggle("Chỉ hiện vùng đo FPS",isOn:$lab.compactMeter).font(.subheadline)

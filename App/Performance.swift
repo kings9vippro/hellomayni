@@ -103,7 +103,7 @@ struct PerformanceView:View {
                 NavigationLink { ExternalFPSView(lab:lab) } label: {
                     Label("Mở FPS nổi (PiP)",systemImage:"pip.enter")
                 }
-                Text("Bản HUD có ReplayKit; Pro/Lite mở PiP nhưng chưa có nguồn FPS.").font(.caption).foregroundStyle(.secondary)
+                Text("Bản HUD đo Capture FPS; Pro/Lite đo nhịp giao diện nội bộ.").font(.caption).foregroundStyle(.secondary)
             }
             Section("Tự động hóa thiết bị") {
                 NavigationLink {SystemSetupView(lab:lab)} label:{Label("Thiết lập iOS & Phím tắt",systemImage:"bolt.horizontal.circle")}

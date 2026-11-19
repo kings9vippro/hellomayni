@@ -7,8 +7,8 @@ struct LabBackdrop: View {
         ZStack {
             if scheme == .dark {
                 Color(red:0.025,green:0.045,blue:0.07)
-                RadialGradient(colors:[Color.teal.opacity(0.22),.clear],center:.topLeading,startRadius:0,endRadius:420)
-                RadialGradient(colors:[Color.purple.opacity(0.19),.clear],center:.bottomTrailing,startRadius:0,endRadius:340)
+                RadialGradient(colors:[Color.cyan.opacity(0.13),.clear],center:.topLeading,startRadius:0,endRadius:420)
+                RadialGradient(colors:[Color.indigo.opacity(0.14),.clear],center:.bottomTrailing,startRadius:0,endRadius:340)
             } else {
                 Color(red:0.93,green:0.97,blue:0.98)
                 RadialGradient(colors:[Color.mint.opacity(0.22),.clear],center:.topLeading,startRadius:0,endRadius:400)
@@ -20,7 +20,7 @@ struct LabBackdrop: View {
 struct GlassPanel<Content:View>: View {
     @ViewBuilder var content: Content
     var body:some View {
-        content.padding(16)
+        VStack(alignment:.leading,spacing:12) { content }.padding(16)
             .frame(maxWidth:.infinity,alignment:.leading)
             .background(.thinMaterial,in:RoundedRectangle(cornerRadius:23))
             .overlay(RoundedRectangle(cornerRadius:23).strokeBorder(.primary.opacity(0.08)))
@@ -35,15 +35,17 @@ struct Dashboard:View {
     @Environment(\.scenePhase) private var phase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared=false
+    @ObservedObject private var cadence=InterfaceCadence.shared
+    @ObservedObject private var monitor=CaptureHUD.shared
     var body:some View {
         ScrollView {
             VStack(alignment:.leading,spacing:15) {
                 HStack(alignment:.center) {
                     VStack(alignment:.leading,spacing:5) {
                         Text("TOUCH LAB").font(.system(size:12,weight:.heavy,design:.monospaced)).tracking(4).foregroundStyle(.teal)
-                        Text("Live diagnostics").font(.system(size:34,weight:.bold,design:.rounded))
-                        Text("Chẩn đoán trên thiết bị").font(.caption).foregroundStyle(.secondary)
-                        Text("PRISM / 9.0").font(.caption2.monospaced()).foregroundStyle(.mint)
+                        Text("Tổng quan").font(.system(size:34,weight:.bold,design:.rounded))
+                        Text("Live performance monitor").font(.caption).foregroundStyle(.secondary)
+                        Text("PULSE / 10.0").font(.caption2.monospaced()).foregroundStyle(.mint)
                     }
                     Spacer()
                     Button {withAnimation(reduceMotion ? nil : .easeInOut(duration:0.22)){appearance.toggle()}} label:{Image(systemName:appearance ? "sun.max":"moon.stars").font(.title3).frame(width:44,height:44).background(.thinMaterial,in:Circle())}.buttonStyle(.plain).accessibilityLabel("Đổi giao diện")
@@ -79,16 +81,24 @@ struct Dashboard:View {
                     }.buttonStyle(LabPressStyle()).padding(.top,10)
                 }
                 GlassPanel {
-                    VStack(alignment:.leading,spacing:12) {
-                        HStack {Text("PRISM MONITOR").font(.caption.bold().monospaced()).tracking(2).foregroundStyle(.secondary);Spacer();Image(systemName:"pip").foregroundStyle(.mint)}
-                        HStack(alignment:.firstTextBaseline) {
-                            Text("FPS").font(.system(size:40,weight:.heavy,design:.rounded))
-                            Text("LIVE CAPTURE").font(.caption.bold()).foregroundStyle(.secondary)
-                            Spacer()
-                        }
-                        Capsule().fill(LinearGradient(colors:[.pink,.orange,.yellow,.mint,.cyan,.purple],startPoint:.leading,endPoint:.trailing)).frame(height:4)
-                        Button {selection=1} label:{Label("Mở FPS nổi",systemImage:"pip.enter").font(.headline).frame(maxWidth:.infinity).padding(13).background(Color.mint,in:RoundedRectangle(cornerRadius:15)).foregroundStyle(.black)}.buttonStyle(LabPressStyle())
+                    HStack {
+                        Text("LIVE PERFORMANCE").font(.caption.monospaced().bold()).tracking(2).foregroundStyle(.secondary)
+                        Spacer()
+                        Image(systemName:"waveform.path.ecg").foregroundStyle(.cyan)
                     }
+                    HStack(alignment:.firstTextBaseline,spacing:8) {
+                        Text(cadence.hz.map{String(format:"%.0f",$0)} ?? "—").font(.system(size:54,weight:.heavy,design:.rounded)).monospacedDigit().contentTransition(.numericText())
+                        Text("UI Hz").font(.headline).foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    Capsule().fill(LinearGradient(colors:[.purple,.blue,.cyan,.mint],startPoint:.leading,endPoint:.trailing)).frame(height:3)
+                    Text("Nhịp giao diện Touch Lab · không phải FPS game").font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        Text("CAPTURE FPS").font(.caption.monospaced())
+                        Spacer()
+                        Text(monitor.fps.map{String(format:"%.1f",$0)} ?? "—").font(.headline.monospacedDigit())
+                    }
+                    Button {selection=1} label:{Label("Mở bảng FPS",systemImage:"pip.enter")}.buttonStyle(PulsePrimary())
                 }
                 PrismTelemetryPanel()
                 Text("DỮ LIỆU ĐO").font(.caption.bold()).tracking(1.5).foregroundStyle(.secondary)

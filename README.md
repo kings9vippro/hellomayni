@@ -39,3 +39,6 @@ All editions include a user-started AVKit PiP thermal-state preview without App 
 
 ## 9.0 Prism
 PiP now defaults to capture FPS with a wide rainbow border and placeholder when capture is absent. Pro/Lite have no ReplayKit extension and do not report capture FPS. HUD needs signed matching App Groups and explicit broadcast. PiP size is controlled by iOS. New capture P95 and sample count derive from video timestamps. Device statistics are from public iOS APIs, CPU/RAM are current app only. Two built-in App Shortcuts register at app launch; system-level actions must be configured by the user. No systemwide FPS injection, touch gain, kernel changes or fake numbers.
+
+## 10.0 Pulse
+Corrects multi-child card layout. Adds actual foreground CADisplayLink callback cadence (UI Hz, NOT game GPU FPS), optional toggle, stops on leaving the app. PiP now selects UI cadence or ReplayKit explicitly, and capture cannot be started before receiving valid fresh samples. Only authorized HUD edition with broadcast and App Groups can capture outside the app. Never labels UI cadence as game FPS, never invents numbers. System PiP can suspend, no physical device test in CI.
