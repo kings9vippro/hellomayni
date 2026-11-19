@@ -90,6 +90,10 @@ struct Dashboard:View {
                     Text("Các chế độ tác động trực tiếp đến bộ đo của Touch Lab, không ép xung hay chỉnh cảm ứng Free Fire.").font(.caption).foregroundStyle(.secondary)
                 }
                 GlassPanel {
+                    #if TOUCHLAB_SCREEN_HUD
+                    NavigationLink {ExternalFPSView(lab:lab)} label:{entry("FPS nổi ngoài app","Đo tốc độ khung hình thu màn hình","pip.enter")}
+                    Divider()
+                    #endif
                     Button {lab.resumeMeasurement();selection=0} label:{entry("Đo cảm ứng & GPU","Thu thập mẫu thật, kiểm tra đa điểm","hand.draw")}
                     Divider()
                     Button {selection=1} label:{entry("Luyện kéo tâm","Mục tiêu di chuyển, độ nhạy tùy chỉnh","scope")}

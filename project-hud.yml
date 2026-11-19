@@ -1,0 +1,59 @@
+name: TouchLabHUD
+options:
+  deploymentTarget:
+    iOS: '18.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    CLANG_CXX_LANGUAGE_STANDARD: c++17
+targets:
+  TouchLabHUD:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Core
+      - HUDApp
+      - HUDShared
+    dependencies:
+      - target: FPSBroadcast
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.touchlab.optimizer.hud
+        PRODUCT_NAME: TouchLabHUD
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: HUDConfig/App.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Touch Lab HUD
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        MARKETING_VERSION: '6.0.0'
+        CURRENT_PROJECT_VERSION: '6'
+        TARGETED_DEVICE_FAMILY: '1'
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: TOUCHLAB_SCREEN_HUD TOUCHLAB_LITE
+        SWIFT_OBJC_BRIDGING_HEADER: App/Bridge.h
+        HEADER_SEARCH_PATHS: '$(SRCROOT)/Core'
+        CODE_SIGN_ENTITLEMENTS: HUDConfig/Groups.entitlements
+  FPSBroadcast:
+    type: app-extension
+    platform: iOS
+    sources:
+      - HUDExtension
+      - HUDShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.touchlab.optimizer.hud.broadcast
+        PRODUCT_NAME: FPSBroadcast
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: HUDConfig/Extension.plist
+        MARKETING_VERSION: '6.0.0'
+        CURRENT_PROJECT_VERSION: '6'
+        TARGETED_DEVICE_FAMILY: '1'
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+        CODE_SIGN_ENTITLEMENTS: HUDConfig/Groups.entitlements
+schemes:
+  TouchLabHUD:
+    build:
+      targets:
+        TouchLabHUD: all

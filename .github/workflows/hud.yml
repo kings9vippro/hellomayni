@@ -1,0 +1,68 @@
+name: Build external FPS HUD experimental
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'HUDApp/**'
+      - 'HUDExtension/**'
+      - 'HUDShared/**'
+      - 'HUDConfig/**'
+      - 'project-hud.yml'
+      - 'Scripts/verify_hud.py'
+      - '.github/workflows/hud.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  hud:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: C++ verification
+        run: clang++ -std=c++17 -O2 -Wall -Wextra -I Core Core/TouchCore.cpp Tests/test.cpp -o /tmp/touch-test && /tmp/touch-test
+      - name: Capture rate tests
+        run: |
+          mkdir -p /tmp/rate-test
+          cp HUDShared/ScreenMetrics.swift /tmp/rate-test/
+          cat >/tmp/rate-test/main.swift <<'SWIFT'
+          import Foundation
+          var rate=CaptureRate()
+          for i in 0..<100 {rate.record(Double(i)/60)}
+          precondition(abs((rate.fps ?? 0)-60)<0.01)
+          rate.reset()
+          for i in 0..<60 {rate.record(Double(i)/30);rate.record(Double(i)/30)}
+          precondition(abs((rate.fps ?? 0)-30)<0.01)
+          rate.record(20)
+          precondition(rate.fps==nil)
+          print("Capture estimator tests passed")
+          SWIFT
+          swiftc /tmp/rate-test/ScreenMetrics.swift /tmp/rate-test/main.swift -o /tmp/rate-test/run && /tmp/rate-test/run
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec project-hud.yml
+      - name: Build host and extension ARM64
+        run: |
+          set -o pipefail
+          xcodebuild -project TouchLabHUD.xcodeproj -scheme TouchLabHUD -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$RUNNER_TEMP/derived" ARCHS=arm64 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build | tee "$RUNNER_TEMP/hud-build.log"
+      - name: Package and verify
+        run: |
+          mkdir -p dist Payload
+          cp -R "$RUNNER_TEMP/derived/Build/Products/Release-iphoneos/TouchLabHUD.app" Payload/
+          zip -qry dist/TouchLab-HUD-6.0.0-unsigned.ipa Payload
+          python3 Scripts/verify_hud.py dist/TouchLab-HUD-6.0.0-unsigned.ipa
+          cp HUDConfig/Groups.entitlements dist/
+          shasum -a 256 dist/*.ipa > dist/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TouchLab-HUD-6-unsigned
+          path: dist/
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HUD-build-log
+          path: ${{ runner.temp }}/hud-build.log
+          if-no-files-found: ignore
