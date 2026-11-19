@@ -23,3 +23,13 @@ Compact draggable FPS-only overlay within app, compact meter, measured GPU comma
 
 ## HUD 6.0 experimental (separate IPA)
 ReplayKit broadcast extension counts video sample presentation timestamps only. No pixel/audio processing, recordings or network transmission. AVKit PiP displays a tiny CAP FPS video from that number. It estimates capture cadence, not game render FPS. The OS controls window dimensions, scheduling and background continuation; real device tests required. Both app IDs (com.touchlab.optimizer.hud and com.touchlab.optimizer.hud.broadcast) must be provisioned by the same team for group.com.touchlab.optimizer.hud. Re-signing tools stripping extensions or app group entitlements will not work. No credentials included. Start screen broadcast explicitly, open PiP, then Home/game; stop broadcast in Control Center when finished. The existing Pro/Lite project remains separate and does not request screen broadcast or App Groups.
+
+## HUD 7.0
+Reworked live monitor, extension and read/write group checks, explicit errors, retry after audio session activation, small cached PiP image. Native aim trainer uses coalesced UIKit touches, adjustable gain and motion-dependent small-motion damping, and two Core Animation layers. It does not alter other apps' touch handling. Capture can be influenced by PiP itself.
+
+### Signing (macOS)
+On Apple Developer register explicit IDs com.touchlab.optimizer.hud and com.touchlab.optimizer.hud.broadcast. Enable App Groups on both, register/assign group.com.touchlab.optimizer.hud, regenerate both development or ad hoc provisioning profiles with the target device and same valid certificate. Import your certificate into a local keychain; never put its private key in the repository. Run security find-identity -v -p codesigning, then:
+
+    bash sign_hud.sh TouchLab-HUD-7.0.0-unsigned.ipa host.mobileprovision extension.mobileprovision CERT_SHA1 TouchLab-HUD-7-signed.ipa
+
+The signing helper verifies exact profile app IDs, team, App Groups authorization, expiration, certificate, device profile class and signatures. It does not generate or bypass Apple authorization. CI builds unsigned because no developer credentials are configured.

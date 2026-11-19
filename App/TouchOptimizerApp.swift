@@ -498,40 +498,6 @@ final class TouchMetal: MTKView, MTKViewDelegate {
         if presentation.count>240 {presentation.removeFirst(presentation.count-240)}
     }
 }
-struct Trainer:View {
-    @State private var start=Date()
-    @State private var hits=0
-    @State private var count=0
-    @State private var gain=1.0
-    @State private var cursor:CGPoint?
-    private func target(_ size:CGSize,_ date:Date)->CGPoint {
-        let t=date.timeIntervalSince(start)
-        return CGPoint(x:25+max(0,size.width-50)*(0.5+0.44*sin(t*1.7)),y:25+max(0,size.height-50)*(0.5+0.39*cos(t*1.2)))
-    }
-    var body:some View {
-        VStack(spacing:15) {
-            Text("Kéo tâm theo mục tiêu di chuyển rồi nhả tay. Hệ số kéo chỉ áp dụng trong bài tập.").font(.subheadline).foregroundStyle(.secondary)
-            HStack {Tile(label:"Trúng",value:"\(hits)/\(count)");Tile(label:"Hệ số kéo",value:String(format:"%.2f×",gain))}
-            GeometryReader { geo in
-                TimelineView(.animation) { time in
-                    let p=target(geo.size,time.date)
-                    ZStack {
-                        RoundedRectangle(cornerRadius:20).fill(Color.black.opacity(0.5))
-                        Circle().strokeBorder(.mint,lineWidth:2).frame(width:44,height:44).position(p)
-                        Circle().fill(.white).frame(width:8,height:8).position(cursor ?? CGPoint(x:geo.size.width/2,y:geo.size.height/2))
-                    }.contentShape(Rectangle()).gesture(DragGesture(minimumDistance:0).onChanged{v in
-                        cursor=CGPoint(x:min(geo.size.width,max(0,geo.size.width/2+v.translation.width*gain)),y:min(geo.size.height,max(0,geo.size.height/2+v.translation.height*gain)))
-                    }.onEnded{_ in
-                        if count<20,let c=cursor {count += 1;let p=target(geo.size,Date());if hypot(c.x-p.x,c.y-p.y)<=22 {hits += 1}}
-                        cursor=nil
-                    })
-                }
-            }.frame(minHeight:240)
-            Slider(value:$gain,in:0.7...2,step:0.05).disabled(count>0)
-            Button("Bắt đầu lại") {hits=0;count=0;start=Date();cursor=nil}.buttonStyle(.borderedProminent)
-        }.padding().navigationTitle("Luyện tâm")
-    }
-}
 struct History:View {
     @ObservedObject var lab:Lab
     var body:some View {

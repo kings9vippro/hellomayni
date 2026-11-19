@@ -8,7 +8,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
     private var running=false
     override func broadcastStarted(withSetupInfo setupInfo:[String:NSObject]?) {
         lock.lock();defer{lock.unlock()}
-        guard ScreenMetrics.url != nil else {
+        guard ScreenMetrics.probe() else {
             finishBroadcastWithError(NSError(domain:"TouchLabHUD",code:1,userInfo:[NSLocalizedDescriptionKey:"Missing authorized App Group provisioning."]))
             return
         }

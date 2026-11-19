@@ -1,4 +1,4 @@
-name: Build external FPS HUD experimental
+name: Build Touch Lab HUD 7
 on:
   push:
     branches: [main]
@@ -9,6 +9,8 @@ on:
       - 'HUDConfig/**'
       - 'project-hud.yml'
       - 'Scripts/verify_hud.py'
+      - 'Scripts/sign_hud.sh'
+      - 'App/**'
       - '.github/workflows/hud.yml'
   workflow_dispatch:
 permissions:
@@ -50,13 +52,13 @@ jobs:
         run: |
           mkdir -p dist Payload
           cp -R "$RUNNER_TEMP/derived/Build/Products/Release-iphoneos/TouchLabHUD.app" Payload/
-          zip -qry dist/TouchLab-HUD-6.0.0-unsigned.ipa Payload
-          python3 Scripts/verify_hud.py dist/TouchLab-HUD-6.0.0-unsigned.ipa
-          cp HUDConfig/Groups.entitlements dist/
+          zip -qry dist/TouchLab-HUD-7.0.0-unsigned.ipa Payload
+          python3 Scripts/verify_hud.py dist/TouchLab-HUD-7.0.0-unsigned.ipa
+          cp HUDConfig/Groups.entitlements Scripts/sign_hud.sh dist/
           shasum -a 256 dist/*.ipa > dist/SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: TouchLab-HUD-6-unsigned
+          name: TouchLab-HUD-7-unsigned
           path: dist/
           retention-days: 90
           if-no-files-found: error

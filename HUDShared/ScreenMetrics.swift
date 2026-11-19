@@ -9,6 +9,12 @@ enum ScreenMetrics {
     static var url: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier:group)?.appendingPathComponent("capture-fps.json")
     }
+    static func probe() -> Bool {
+        guard let base=url?.deletingLastPathComponent() else{return false}
+        let file=base.appendingPathComponent("probe-"+UUID().uuidString)
+        do {let bytes=Data([0x54,0x4c]);try bytes.write(to:file,options:.atomic);defer{try? FileManager.default.removeItem(at:file)};return try Data(contentsOf:file)==bytes}
+        catch{return false}
+    }
     static func write(_ sample: ScreenSample) {
         guard let url=url,let data=try? JSONEncoder().encode(sample) else{return}
         try? data.write(to:url,options:.atomic)
